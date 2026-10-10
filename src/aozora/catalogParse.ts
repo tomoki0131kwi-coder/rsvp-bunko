@@ -30,6 +30,7 @@ export function parseCatalogCsv(text: string): CatalogWork[] {
     seiYomi: col('姓読み'),
     meiYomi: col('名読み'),
     role: col('役割フラグ'),
+    cardUrl: col('図書カードURL'),
     textUrl: col('テキストファイルURL'),
     htmlUrl: col('XHTML/HTMLファイルURL'),
   };
@@ -52,6 +53,7 @@ export function parseCatalogCsv(text: string): CatalogWork[] {
         subtitle: get(r, C.subtitle),
         kana: get(r, C.kana),
         people: [],
+        cardUrl: get(r, C.cardUrl),
         htmlUrl: get(r, C.htmlUrl),
         textUrl: get(r, C.textUrl),
         copyrighted: get(r, C.copyright) === 'あり',

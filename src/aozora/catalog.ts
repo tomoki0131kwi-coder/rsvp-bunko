@@ -1,16 +1,9 @@
 import type { CatalogWork } from '../types';
-import { idbGet, idbSet } from '../util/idb';
 import { normalizeForSearch } from '../util/kana';
-import { CATALOG_PATH, getMirrorBase } from './sources';
+import { decodeWorks, type CatalogFile } from './catalogFormat';
 
-const CACHE_KEY = 'catalog:v1';
-/** 図書目録の再取得間隔 */
-const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-
-interface CachedCatalog {
-  fetchedAt: number;
-  works: CatalogWork[];
-}
+/** デプロイ時に scripts/build-catalog.ts が作り、アプリと一緒に配信する図書目録 */
+export const CATALOG_URL = './catalog.json';
 
 interface Indexed {
   work: CatalogWork;
@@ -22,7 +15,10 @@ interface Indexed {
 export class Catalog {
   private indexed: Indexed[] = [];
   private byIdMap = new Map<number, CatalogWork>();
-  fetchedAt = 0;
+  /** 図書目録を作った日時 */
+  generatedAt = '';
+  /** 本文ミラーの更新日時 */
+  mirrorUpdatedAt = '';
 
   get size(): number {
     return this.indexed.length;
@@ -32,12 +28,11 @@ export class Catalog {
     return this.indexed.length > 0;
   }
 
-  get stale(): boolean {
-    return Date.now() - this.fetchedAt > MAX_AGE_MS;
+  get withText(): number {
+    return this.indexed.filter((it) => it.work.mirrorPath).length;
   }
 
-  setWorks(works: CatalogWork[], fetchedAt: number): void {
-    this.fetchedAt = fetchedAt;
+  setWorks(works: CatalogWork[]): void {
     this.byIdMap = new Map(works.map((w) => [w.id, w]));
     this.indexed = works.map((work) => ({
       work,
@@ -51,38 +46,21 @@ export class Catalog {
     return this.byIdMap.get(id);
   }
 
-  /** IndexedDB のキャッシュから読む。無ければ false。 */
-  async loadCached(): Promise<boolean> {
-    const cached = await idbGet<CachedCatalog>(CACHE_KEY);
-    if (!cached?.works?.length) return false;
-    this.setWorks(cached.works, cached.fetchedAt);
-    return true;
-  }
-
-  /** ミラーから最新の図書目録を取得する */
-  async fetchLatest(): Promise<void> {
-    const url = getMirrorBase() + CATALOG_PATH;
-    const works = await new Promise<CatalogWork[]>((resolve, reject) => {
-      const worker = new Worker(new URL('./catalog.worker.ts', import.meta.url), { type: 'module' });
-      worker.onmessage = (e: MessageEvent<{ ok: boolean; works?: CatalogWork[]; error?: string }>) => {
-        worker.terminate();
-        if (e.data.ok && e.data.works) resolve(e.data.works);
-        else reject(new Error(e.data.error ?? '図書目録の読み込みに失敗しました'));
-      };
-      worker.onerror = (e) => {
-        worker.terminate();
-        reject(new Error(e.message || '図書目録の読み込みに失敗しました'));
-      };
-      worker.postMessage({ url });
-    });
-    const fetchedAt = Date.now();
-    this.setWorks(works, fetchedAt);
-    await idbSet(CACHE_KEY, { fetchedAt, works } satisfies CachedCatalog);
+  async load(signal?: AbortSignal): Promise<void> {
+    const res = await fetch(CATALOG_URL, { signal, cache: 'no-cache' });
+    if (res.status === 404) {
+      throw new Error('図書目録（catalog.json）がありません。開発環境では npm run catalog で作成してください。');
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const file = (await res.json()) as CatalogFile;
+    this.generatedAt = file.generatedAt;
+    this.mirrorUpdatedAt = file.mirror?.updatedAt ?? '';
+    this.setWorks(decodeWorks(file.works));
   }
 
   /**
    * 作品名・読み・著者名（読み）で検索する。空白区切りで AND 検索。
-   * 並び順: 作品名の前方一致 → 作品名の部分一致 → 著者一致、同順位は作品名の読み順。
+   * 並び順: 作品名の前方一致 → 作品名の部分一致 → 著者一致。同順位なら本文のある作品 → 作品名の読み順。
    */
   search(query: string, limit = 100): { works: CatalogWork[]; total: number } {
     const terms = query.split(/[\s　]+/).map(normalizeForSearch).filter(Boolean);
@@ -102,14 +80,22 @@ export class Catalog {
       }
       if (ok) hits.push({ work: it.work, score });
     }
-    hits.sort((a, b) => b.score - a.score || a.work.titleYomi.localeCompare(b.work.titleYomi, 'ja'));
+    hits.sort(
+      (a, b) =>
+        b.score - a.score ||
+        Number(!!b.work.mirrorPath) - Number(!!a.work.mirrorPath) ||
+        a.work.titleYomi.localeCompare(b.work.titleYomi, 'ja'),
+    );
     return { works: hits.slice(0, limit).map((h) => h.work), total: hits.length };
   }
 
-  /** 作品名と著者名で 1 件探す（おすすめ一覧用） */
+  /** 作品名と著者名で 1 件探す（おすすめ一覧用）。本文のある版を優先する。 */
   find(title: string, author: string): CatalogWork | undefined {
     const t = normalizeForSearch(title);
     const a = normalizeForSearch(author);
-    return this.indexed.find((it) => it.title.startsWith(t) && it.people.includes(a) && normalizeForSearch(it.work.title) === t)?.work;
+    const hits = this.indexed.filter(
+      (it) => it.title.startsWith(t) && it.people.includes(a) && normalizeForSearch(it.work.title) === t,
+    );
+    return (hits.find((it) => it.work.mirrorPath) ?? hits[0])?.work;
   }
 }

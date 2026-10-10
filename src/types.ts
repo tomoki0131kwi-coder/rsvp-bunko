@@ -56,8 +56,13 @@ export interface CatalogWork {
   /** 文字遣い種別（新字新仮名 など） */
   kana: string;
   people: CatalogPerson[];
+  /** 図書カードの URL */
+  cardUrl: string;
+  /** 青空文庫サイト上の XHTML / テキスト（ZIP）の URL */
   htmlUrl: string;
   textUrl: string;
+  /** 本文ミラー上のテキストのパス（無ければミラー未収録） */
+  mirrorPath?: string;
   /** 作品著作権フラグが「あり」 */
   copyrighted: boolean;
   published: string;

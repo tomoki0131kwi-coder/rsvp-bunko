@@ -35,6 +35,7 @@
 
 ```bash
 npm install
+npm run catalog   # 図書目録 public/catalog.json を作る（要ネットワーク）
 npm run dev       # 開発サーバー
 npm test          # 単体テスト（Vitest）
 npm run build     # dist/ に静的ファイルを出力
@@ -51,14 +52,22 @@ npm run preview   # ビルド結果の確認
 
 ### 作品データの取得元
 
-青空文庫のサイト（`www.aozora.gr.jp`）は CORS ヘッダーを返さないため、ブラウザから直接ファイルを取得できません。
-そこで、青空文庫が GitHub で公開しているリポジトリ [aozorabunko/aozorabunko](https://github.com/aozorabunko/aozorabunko) を
-`raw.githubusercontent.com` 経由で取得しています（同ホストは `Access-Control-Allow-Origin: *` を返します）。
+青空文庫のサイト（`www.aozora.gr.jp`）は CORS ヘッダーを返さないため、ブラウザから直接ファイルを取得できません。そこで次のようにしています。
 
-- 図書目録: `index_pages/list_person_all_extended_utf8.zip`（「公開中　作家別作品一覧拡充版：全て」CSV）。初回に取得して IndexedDB に保存し、7 日ごとに更新
-- 本文: 目録の「XHTML/HTMLファイルURL」を優先し、取れなければ「テキストファイルURL」（ZIP）を使用
+- **図書目録**: デプロイ時（GitHub Actions）に `scripts/build-catalog.ts`（`npm run catalog`）が、青空文庫の
+  「公開中　作家別作品一覧拡充版：全て」（`https://www.aozora.gr.jp/index_pages/list_person_all_extended_utf8.zip`）を取得し、
+  `public/catalog.json` に変換してアプリと一緒に配信します。サーバー側で取得するので CORS の制約を受けません。
+  デプロイ用ワークフローは毎週月曜にも動き、目録を作り直します
+- **本文**: [aozorahack/aozorabunko_text](https://github.com/aozorahack/aozorabunko_text)（青空文庫の ZIP 内のテキストを
+  `cards/<人物ID>/files/<ZIP名>/<ZIP名>.txt` に展開して公開しているリポジトリ）を `raw.githubusercontent.com` 経由で取得します。
+  目録作成時にこのリポジトリのファイル一覧（本文は取らない）を取り、各作品に本文のパスを付けます。目録の ZIP と同じ版が無い場合は、ミラーにある版のうちルビ付き・版番号の大きいものを使います
+- **ミラー未収録の作品**: 検索結果に「本文ミラー未収録」と表示し、開こうとすると図書カードへのリンクを出します。
+  図書カードからダウンロードした ZIP を「ファイルを開く」で読み込めば読めます
+- **外字画像**: `<img>` で青空文庫のサイトから直接表示します（画像の表示には CORS は不要）
 
-取得元は設定画面の「詳細設定」で、同じディレクトリ構成のミラーに変更できます。
+本文の取得元は設定画面の「詳細設定」で、同じ構成のミラーに変更できます。
+
+ローカルで開発するときは、先に `npm run catalog` で `public/catalog.json` を作ってください（`CATALOG_ZIP` に取得済みの ZIP を指定するとダウンロードを省けます）。
 
 ### 本文の解析（`src/aozora/`）
 
@@ -78,11 +87,11 @@ npm run preview   # ビルド結果の確認
 
 - 青空文庫「[収録ファイルの取り扱い規準](https://www.aozora.gr.jp/guide/kijyunn.html)」— 作品ファイルの利用条件。本アプリは作品を再配布せず、利用者のブラウザが都度取得して表示します。作品情報画面には各ファイル末尾の底本・入力者・校正者の情報をそのまま表示します
 - 青空文庫「[注記一覧](https://www.aozora.gr.jp/annotation/)」「[テキスト入力ルール](https://www.aozora.gr.jp/aozora-manual/index-input.html)」— テキスト版の書式
-- [aozorabunko/aozorabunko](https://github.com/aozorabunko/aozorabunko) — 青空文庫の GitHub 公開リポジトリ
+- [aozorahack/aozorabunko_text](https://github.com/aozorahack/aozorabunko_text) — 本文テキストのミラー（README に配置と更新方法の説明あり）
 - [BudouX](https://github.com/google/budoux)（Apache License 2.0）、[fflate](https://github.com/101arrowz/fflate)（MIT License）— 同梱ライブラリ。ライセンス文は `public/THIRD_PARTY_LICENSES.txt`
 
 ## 既知の制約
 
 - 挿絵は表示しません。外字は Unicode で表せるもの（注記に `U+XXXX` があるもの）は文字に、それ以外は青空文庫の外字画像で表示し、画像が取れなければ「〓」になります
 - 漢文の返り点は省略します。字下げ・字詰め・割り注などのレイアウト注記は反映しません
-- 作品データの取得は GitHub の公開リポジトリの可用性に依存します。取得できない場合は、青空文庫からダウンロードしたファイルを「ファイルを開く」で読み込んでください
+- 本文ミラー（aozorahack/aozorabunko_text）は 2023 年 3 月 22 日のコミットを最後に更新が止まっています。それ以降に公開・修正された作品は、ミラーに無いか旧版になります。読めない作品は、青空文庫からダウンロードしたファイルを「ファイルを開く」で読み込んでください

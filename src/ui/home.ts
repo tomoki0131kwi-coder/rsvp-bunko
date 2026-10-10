@@ -75,6 +75,9 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
           peopleLabel(w),
           w.kana ? h('span', { class: 'badge' }, w.kana) : null,
           w.copyrighted ? h('span', { class: 'badge badge-warn', title: '著作権存続中（青空文庫が許諾を得て公開）' }, '著作権あり') : null,
+          w.mirrorPath
+            ? null
+            : h('span', { class: 'badge badge-warn', title: '本文ミラーに未収録。ファイルを開いて読むことはできます' }, '本文ミラー未収録'),
         ),
       ),
     );
@@ -106,19 +109,22 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
   function renderStatus(state: CatalogState) {
     clear(status);
     if (state.status === 'loading') {
-      status.append(h('span', { class: 'spinner', 'aria-hidden': 'true' }), '青空文庫の図書目録を取得しています…');
+      status.append(h('span', { class: 'spinner', 'aria-hidden': 'true' }), '図書目録を読み込んでいます…');
     } else if (state.status === 'error') {
       status.append(
-        h('span', { class: 'error-text' }, `図書目録を取得できませんでした: ${state.message}`),
+        h('span', { class: 'error-text' }, `図書目録を読み込めませんでした: ${state.message}`),
         ' ',
         h('button', { class: 'link', type: 'button', onclick: ctx.refreshCatalog }, '再試行'),
       );
     } else if (ctx.catalog.loaded) {
-      const d = new Date(ctx.catalog.fetchedAt);
+      const date = (iso: string) => (iso ? new Date(iso).toLocaleDateString('ja-JP') : '不明');
       status.append(
-        `収録 ${ctx.catalog.size.toLocaleString()} 作品（目録取得: ${d.toLocaleDateString('ja-JP')}）`,
-        ' ',
-        h('button', { class: 'link', type: 'button', onclick: ctx.refreshCatalog, title: '図書目録を取り直す' }, '更新'),
+        `収録 ${ctx.catalog.size.toLocaleString()} 作品・うち本文あり ${ctx.catalog.withText.toLocaleString()} 作品`,
+        h(
+          'span',
+          { class: 'small' },
+          `（目録: ${date(ctx.catalog.generatedAt)} 時点／本文ミラー: ${date(ctx.catalog.mirrorUpdatedAt)} 時点）`,
+        ),
       );
     }
   }
@@ -238,9 +244,9 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
           {},
           '作品データ: ',
           h('a', { href: 'https://www.aozora.gr.jp/', target: '_blank', rel: 'noopener' }, '青空文庫'),
-          '（',
-          h('a', { href: 'https://github.com/aozorabunko/aozorabunko', target: '_blank', rel: 'noopener' }, 'GitHub 公開リポジトリ'),
-          '経由で取得）。文節区切り: ',
+          '（本文は ',
+          h('a', { href: 'https://github.com/aozorahack/aozorabunko_text', target: '_blank', rel: 'noopener' }, 'aozorabunko_text'),
+          ' 経由で取得）。文節区切り: ',
           h('a', { href: 'https://github.com/google/budoux', target: '_blank', rel: 'noopener' }, 'BudouX'),
           '。',
           h('a', { href: './THIRD_PARTY_LICENSES.txt', target: '_blank', rel: 'noopener' }, 'ライセンス表記'),

@@ -1,6 +1,6 @@
 import './styles.css';
 import { Catalog } from './aozora/catalog';
-import { loadCatalogWork, loadFromFile, loadFromUrl, setMirrorBase } from './aozora/sources';
+import { LoadError, loadCatalogWork, loadFromFile, loadFromUrl, setMirrorBase } from './aozora/sources';
 import type { Book } from './types';
 import { h } from './ui/dom';
 import { renderHome, type CatalogState } from './ui/home';
@@ -29,7 +29,6 @@ function applySettings(prev: Settings, next: Settings) {
   document.documentElement.dataset.theme = next.theme === 'auto' ? '' : next.theme;
   if (next.theme === 'auto') delete document.documentElement.dataset.theme;
   setMirrorBase(next.mirror);
-  if (prev.mirror !== next.mirror && catalog.loaded) void refreshCatalog();
   reader?.applySettings(prev, next);
 }
 
@@ -48,30 +47,19 @@ function setCatalogState(s: CatalogState) {
 }
 
 let catalogPromise: Promise<void> | null = null;
+/** 図書目録を読み込む。読み込み中・読み込み済みなら同じ Promise を返す。 */
 function ensureCatalog(): Promise<void> {
-  if (catalogPromise) return catalogPromise;
-  catalogPromise = (async () => {
-    if (await catalog.loadCached()) {
+  catalogPromise ??= (async () => {
+    setCatalogState({ status: 'loading' });
+    try {
+      await catalog.load();
       setCatalogState({ status: 'ready' });
-      // 古ければ裏で取り直す
-      if (catalog.stale) void refreshCatalog();
-      return;
+    } catch (e) {
+      catalogPromise = null;
+      setCatalogState({ status: 'error', message: e instanceof Error ? e.message : String(e) });
     }
-    await refreshCatalog();
-    if (!catalog.loaded) catalogPromise = null;
   })();
   return catalogPromise;
-}
-
-async function refreshCatalog(): Promise<void> {
-  if (catalogState.status === 'loading') return;
-  setCatalogState({ status: 'loading' });
-  try {
-    await catalog.fetchLatest();
-    setCatalogState({ status: 'ready' });
-  } catch (e) {
-    setCatalogState({ status: 'error', message: e instanceof Error ? e.message : String(e) });
-  }
 }
 
 // ---- 画面遷移 ----
@@ -91,7 +79,7 @@ function showHome() {
   cleanup = renderHome(app, {
     catalog,
     catalogState: () => catalogState,
-    refreshCatalog: () => void refreshCatalog(),
+    refreshCatalog: () => void ensureCatalog(),
     openWork: (id) => navigate(`#/work/${id}`),
     openRecent: (r) => openRecent(r),
     openFile: (f) => void openFile(f),
@@ -132,14 +120,17 @@ function showLoading(message: string, onCancel?: () => void) {
   );
 }
 
-function showError(message: string) {
+function showError(error: unknown) {
   teardown();
+  const message = error instanceof Error ? error.message : String(error);
+  const link = error instanceof LoadError ? error.link : undefined;
   app.replaceChildren(
     h(
       'div',
       { class: 'loading-screen' },
       h('p', { class: 'error-text' }, '作品を開けませんでした'),
-      h('pre', { class: 'error-detail' }, message),
+      h('p', { class: 'error-detail' }, message),
+      link ? h('a', { class: 'button', href: link.href, target: '_blank', rel: 'noopener' }, link.label) : null,
       h('button', { class: 'button', type: 'button', onclick: () => navigate('#/') }, 'ホームに戻る'),
     ),
   );
@@ -164,7 +155,7 @@ async function withLoading(message: string, load: (signal: AbortSignal) => Promi
     return book;
   } catch (e) {
     if (ctrl.signal.aborted) return null;
-    showError(e instanceof Error ? e.message : String(e));
+    showError(e);
     return null;
   }
 }
@@ -194,7 +185,10 @@ async function route() {
     const book = await withLoading('作品を読み込んでいます…', async () => {
       const cached = await getCachedBook(arg);
       if (cached) return cached;
-      if (arg.startsWith('url:')) return loadFromUrl(arg.slice(4));
+      if (arg.startsWith('url:')) {
+        await ensureCatalog();
+        return loadFromUrl(arg.slice(4), (id) => catalog.byId(id));
+      }
       throw new Error('この本の本文は端末に保存されていません。もう一度ファイルを開いてください。');
     });
     if (book) showReader(book);
@@ -216,14 +210,17 @@ function openRecent(r: RecentEntry) {
 async function openFile(file: File) {
   const book = await withLoading(`「${file.name}」を読み込んでいます…`, () => loadFromFile(file));
   if (!book) return;
-  if (!book.blocks.length) return showError('本文を読み取れませんでした。青空文庫形式のファイルか確認してください。');
+  if (!book.blocks.length) return showError(new Error('本文を読み取れませんでした。青空文庫形式のファイルか確認してください。'));
   currentBook = book;
   await cacheBook(book);
   navigate(bookHash(book));
 }
 
 async function openUrl(url: string) {
-  const book = await withLoading('作品を読み込んでいます…', (signal) => loadFromUrl(url, signal));
+  const book = await withLoading('作品を読み込んでいます…', async (signal) => {
+    await ensureCatalog();
+    return loadFromUrl(url, (id) => catalog.byId(id), signal);
+  });
   if (!book) return;
   currentBook = book;
   await cacheBook(book);
