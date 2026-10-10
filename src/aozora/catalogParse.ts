@@ -30,6 +30,9 @@ export function parseCatalogCsv(text: string): CatalogWork[] {
     seiYomi: col('姓読み'),
     meiYomi: col('名読み'),
     role: col('役割フラグ'),
+    ndc: col('分類番号'),
+    born: col('生年月日'),
+    died: col('没年月日'),
     cardUrl: col('図書カードURL'),
     textUrl: col('テキストファイルURL'),
     htmlUrl: col('XHTML/HTMLファイルURL'),
@@ -54,6 +57,7 @@ export function parseCatalogCsv(text: string): CatalogWork[] {
         kana: get(r, C.kana),
         people: [],
         cardUrl: get(r, C.cardUrl),
+        ndc: get(r, C.ndc),
         htmlUrl: get(r, C.htmlUrl),
         textUrl: get(r, C.textUrl),
         copyrighted: get(r, C.copyright) === 'あり',
@@ -68,6 +72,8 @@ export function parseCatalogCsv(text: string): CatalogWork[] {
         name: [get(r, C.sei), get(r, C.mei)].filter(Boolean).join(' '),
         yomi: [get(r, C.seiYomi), get(r, C.meiYomi)].filter(Boolean).join(' '),
         role: get(r, C.role),
+        born: get(r, C.born) || undefined,
+        died: get(r, C.died) || undefined,
       });
     }
     if (!w.htmlUrl) w.htmlUrl = get(r, C.htmlUrl);

@@ -3,6 +3,9 @@ import { Catalog } from './aozora/catalog';
 import { LoadError, loadCatalogWork, loadFromFile, loadFromUrl, setMirrorBase } from './aozora/sources';
 import type { Book } from './types';
 import { h } from './ui/dom';
+import { filterFromParams, browseHash } from './aozora/browseQuery';
+import { renderAuthors } from './ui/authors';
+import { renderBrowse } from './ui/browse';
 import { renderHome, type CatalogState } from './ui/home';
 import { renderReader, type ReaderHandle } from './ui/reader';
 import { openSettingsDialog } from './ui/settings';
@@ -85,10 +88,49 @@ function showHome() {
     openFile: (f) => void openFile(f),
     openUrl: (u) => void openUrl(u),
     openSettings,
-    onCatalogChange: (fn) => {
-      catalogListeners.add(fn);
-      return () => catalogListeners.delete(fn);
-    },
+    onCatalogChange,
+    navigate,
+    openPerson,
+    cpm: () => settings.cpm,
+  });
+}
+
+function onCatalogChange(fn: () => void): () => void {
+  catalogListeners.add(fn);
+  return () => catalogListeners.delete(fn);
+}
+
+const openPerson = (id: number) => navigate(browseHash({ person: id }));
+
+function showBrowse(params: URLSearchParams) {
+  teardown();
+  document.title = '作品をさがす — RSVP文庫';
+  void ensureCatalog();
+  cleanup = renderBrowse(app, filterFromParams(params), {
+    catalog,
+    catalogState: () => catalogState,
+    retryCatalog: () => void ensureCatalog(),
+    onCatalogChange,
+    goHome: () => navigate('#/'),
+    openAuthors: () => navigate('#/authors'),
+    openWork: (id) => navigate(`#/work/${id}`),
+    openPerson,
+    cpm: settings.cpm,
+  });
+}
+
+function showAuthors() {
+  teardown();
+  document.title = '作家一覧 — RSVP文庫';
+  void ensureCatalog();
+  cleanup = renderAuthors(app, {
+    catalog,
+    catalogState: () => catalogState,
+    retryCatalog: () => void ensureCatalog(),
+    onCatalogChange,
+    goHome: () => navigate('#/'),
+    openBrowse: () => navigate('#/browse'),
+    openPerson,
   });
 }
 
@@ -162,8 +204,12 @@ async function withLoading(message: string, load: (signal: AbortSignal) => Promi
 
 async function route() {
   const hash = location.hash.replace(/^#\/?/, '');
-  const [kind, ...rest] = hash.split('/');
+  const [path, query = ''] = hash.split('?');
+  const [kind, ...rest] = path.split('/');
   const arg = decodeURIComponent(rest.join('/'));
+
+  if (kind === 'browse') return showBrowse(new URLSearchParams(query));
+  if (kind === 'authors') return showAuthors();
 
   if (kind === 'work' && /^\d+$/.test(arg)) {
     const key = `aozora:${arg}`;
