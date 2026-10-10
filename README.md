@@ -25,6 +25,16 @@
 - **読書位置の保存**: 「続きを読む」から再開。本文も端末（IndexedDB）に保存するので、一度開いた作品はオフラインでも読めます
 - **ファイル・URL から開く**: 青空文庫の ZIP／ルビ付きテキスト／XHTML ファイルや、図書カードの URL
 - ライト／セピア／ダークテーマ、スマートフォン対応、再生中のスリープ防止（Screen Wake Lock 対応ブラウザ）
+- **アプリとしてインストール**: 対応ブラウザ（Android の Chrome など）では、ホーム画面の上部に「インストール」ボタンが出ます
+
+### Android でのインストールについて
+
+Android の Chrome では、メニューの「ホーム画面に追加」は、**同じオリジン（`tomoki0131kwi-coder.github.io`）に別の Web アプリがインストールされていると**「このアプリはすでにインストールされています」と表示し、「開く」を押しても「アプリを開けませんでした」となります。
+GitHub Pages のプロジェクトサイトは同じユーザーのものがすべて同じオリジンになるため、別のリポジトリの Web アプリをインストールしていると起こります。
+
+- 原因（Chromium のソース）: メニューからの追加は `WebappRegistry.isAppInstalledForUrl()` で判定しており、その中の `hasAtLeastOneWebApkForOrigin()` はオリジンが同じ WebAPK があれば「インストール済み」とする。一方「開く」は URL を扱える WebAPK を探すので、スコープが別のアプリは見つからない（`AppInstallMenuHandler.java`）
+- 対策: 画面内の「インストール」ボタンは `beforeinstallprompt` を使う。この経路は開始 URL を扱える WebAPK があるかで判定する（`WebappsClientAndroid::DoesNewWebAppConflictWithExistingInstallation` → `WebappsUtils::IsWebApkInstalled(start_url)`）ため、同じオリジンの別アプリとは衝突しない
+- `manifest.webmanifest` は `start_url`・`scope` を `./`（= `/rsvp-bunko/`）にし、`id` は省略して開始 URL を ID にしている（`"id": "./"` はオリジン直下に解決されてしまうため）
 
 ### キーボード操作
 

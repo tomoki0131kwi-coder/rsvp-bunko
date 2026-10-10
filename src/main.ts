@@ -8,8 +8,11 @@ import { renderAuthors } from './ui/authors';
 import { renderBrowse } from './ui/browse';
 import { renderHome, type CatalogState } from './ui/home';
 import { renderReader, type ReaderHandle } from './ui/reader';
+import { initInstallPrompt } from './ui/install';
 import { openSettingsDialog } from './ui/settings';
 import { cacheBook, getCachedBook, loadSettings, saveSettings, type RecentEntry, type Settings } from './util/storage';
+
+initInstallPrompt();
 
 const app = document.getElementById('app')!;
 let settings: Settings = loadSettings();
