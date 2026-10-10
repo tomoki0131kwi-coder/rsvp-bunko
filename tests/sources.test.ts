@@ -13,6 +13,7 @@ const rashomon: CatalogWork = {
   kana: '新字旧仮名',
   people: [{ id: 879, name: '芥川 竜之介', yomi: 'あくたがわ りゅうのすけ', role: '著者' }],
   cardUrl: 'https://www.aozora.gr.jp/cards/000879/card127.html',
+  ndc: 'NDC 913',
   htmlUrl: '',
   textUrl: 'https://www.aozora.gr.jp/cards/000879/files/127_ruby_150.zip',
   mirrorPath: 'cards/000879/files/127_ruby_150/127_ruby_150.txt',

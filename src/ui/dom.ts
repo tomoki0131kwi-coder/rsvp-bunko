@@ -1,11 +1,12 @@
 type Attrs = Record<string, string | number | boolean | EventListener | undefined | null>;
 type Child = Node | string | number | null | undefined | false;
+type ChildTree = Child | ChildTree[];
 
 /** 小さな DOM 生成ヘルパー。on〜 属性はイベントリスナーとして登録する。 */
 export function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   attrs: Attrs = {},
-  ...children: (Child | Child[])[]
+  ...children: ChildTree[]
 ): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -24,7 +25,8 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   return el;
 }
 
-function append(el: Element, children: (Child | Child[])[]): void {
+/** null・false などを読み飛ばしながら子要素を追加する（入れ子の配列も平らにする） */
+export function append(el: Element, children: ChildTree[]): void {
   for (const c of children) {
     if (Array.isArray(c)) append(el, c);
     else if (c === null || c === undefined || c === false) continue;

@@ -1,8 +1,10 @@
-import { peopleLabel } from '../aozora/catalogParse';
+import { browseHash } from '../aozora/browseQuery';
 import type { Catalog } from '../aozora/catalog';
+import { FACET_BY_KEY, type FacetKey } from '../aozora/facets';
 import type { CatalogWork } from '../types';
 import { loadRecent, removeRecent, type RecentEntry } from '../util/storage';
 import { ICONS, clear, h, icon } from './dom';
+import { formatReadingTime, workItem as sharedWorkItem } from './workList';
 
 export interface HomeContext {
   catalog: Catalog;
@@ -14,7 +16,35 @@ export interface HomeContext {
   openUrl: (url: string) => void;
   openSettings: () => void;
   onCatalogChange: (fn: () => void) => () => void;
+  /** #/browse?… などへ移る */
+  navigate: (hash: string) => void;
+  openPerson: (id: number) => void;
+  /** 読了時間の目安に使う速さ（字/分） */
+  cpm: () => number;
 }
+
+/** ホームの「さがす」に並べる、よく使う括りの組み合わせ */
+const GENRE_SHORTCUTS: { label: string; facets: Partial<Record<FacetKey, string>> }[] = [
+  { label: '日本の小説・物語', facets: { field: '91', form: '3' } },
+  { label: '詩歌', facets: { form: '1' } },
+  { label: '評論・エッセイ・随筆', facets: { form: '4' } },
+  { label: '戯曲', facets: { form: '2' } },
+  { label: '日記・書簡・紀行', facets: { form: '5' } },
+  { label: '児童書', facets: { audience: 'kids' } },
+  { label: '英米文学', facets: { field: '93' } },
+  { label: 'フランス文学', facets: { field: '95' } },
+  { label: 'ドイツ文学', facets: { field: '94' } },
+  { label: 'ロシア・ソビエト文学', facets: { field: '98' } },
+  { label: '中国文学・東洋文学', facets: { field: '92' } },
+  { label: '哲学・宗教', facets: { field: '1' } },
+  { label: '歴史・地理', facets: { field: '2' } },
+  { label: '社会科学', facets: { field: '3' } },
+  { label: '自然科学', facets: { field: '4' } },
+  { label: '芸術・スポーツ', facets: { field: '7' } },
+];
+
+/** 長さの括りの上限（字）。読了時間の目安を出すのに使う */
+const LENGTH_MAX: Record<string, number> = { s1: 3000, s2: 10000, s3: 30000, s4: 100000 };
 
 export type CatalogState =
   | { status: 'idle' | 'loading' }
@@ -54,6 +84,7 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
   });
   const recentSection = h('section', { class: 'section' });
   const picksSection = h('section', { class: 'section' });
+  const discoverSection = h('section', { class: 'section discover' });
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   input.addEventListener('input', () => {
@@ -62,25 +93,7 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
   });
 
   const workItem = (w: CatalogWork) =>
-    h(
-      'li',
-      {},
-      h(
-        'button',
-        { class: 'work', type: 'button', onclick: () => ctx.openWork(w.id) },
-        h('span', { class: 'work-title' }, w.title, w.subtitle ? h('small', {}, '　', w.subtitle) : null),
-        h(
-          'span',
-          { class: 'work-meta' },
-          peopleLabel(w),
-          w.kana ? h('span', { class: 'badge' }, w.kana) : null,
-          w.copyrighted ? h('span', { class: 'badge badge-warn', title: '著作権存続中（青空文庫が許諾を得て公開）' }, '著作権あり') : null,
-          w.mirrorPath
-            ? null
-            : h('span', { class: 'badge badge-warn', title: '本文ミラーに未収録。ファイルを開いて読むことはできます' }, '本文ミラー未収録'),
-        ),
-      ),
-    );
+    sharedWorkItem(w, { openWork: ctx.openWork, openPerson: ctx.openPerson, cpm: ctx.cpm() });
 
   function update() {
     lastQuery = input.value;
@@ -90,6 +103,7 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
     const q = input.value.trim();
     picksSection.hidden = !!q;
     recentSection.hidden = !!q;
+    discoverSection.hidden = !!q;
     if (!q) return;
     if (!ctx.catalog.loaded) {
       results.append(h('p', { class: 'muted' }, '図書目録を読み込み中です…'));
@@ -169,6 +183,65 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
     );
   }
 
+  /** ジャンル・長さ・時代・作家などの括りから探す入口 */
+  function renderDiscover() {
+    clear(discoverSection);
+    const catalog = ctx.catalog;
+    if (!catalog.loaded) return;
+    const count = (facets: Partial<Record<FacetKey, string>>) =>
+      catalog.browse({ q: '', textOnly: true, sort: 'title', facets }).works.length;
+    const chip = (label: string, hash: string, n?: number) =>
+      h(
+        'a',
+        { class: 'chip', href: hash, onclick: (e: Event) => (e.preventDefault(), ctx.navigate(hash)) },
+        label,
+        n !== undefined ? h('span', { class: 'chip-count' }, n.toLocaleString()) : null,
+      );
+    const group = (title: string, chips: Node[], extra?: Node) =>
+      h('div', { class: 'discover-group' }, h('h3', {}, title), h('div', { class: 'chips' }, chips, extra ?? null));
+
+    const genres = GENRE_SHORTCUTS.map((g) => ({ ...g, n: count(g.facets) }))
+      .filter((g) => g.n > 0)
+      .map((g) => chip(g.label, browseHash({ facets: g.facets }), g.n));
+
+    const lengths = catalog.hasLength
+      ? FACET_BY_KEY.length.options
+          .filter((o) => o.value !== 'unknown')
+          .map((o) => {
+            const max = LENGTH_MAX[o.value];
+            const time = max ? `（〜${formatReadingTime(max, ctx.cpm()).replace('約', '')}）` : '';
+            return chip(`${o.label}${time}`, browseHash({ facets: { length: o.value } }), count({ length: o.value }));
+          })
+      : [];
+
+    const eras = FACET_BY_KEY.era.options
+      .filter((o) => o.value !== 'unknown')
+      .map((o) => chip(`${o.label}生まれ`, browseHash({ facets: { era: o.value } }), count({ era: o.value })));
+
+    const topAuthors = [...catalog.authors()]
+      .filter((a) => a.authored > 0)
+      .sort((a, b) => b.withText - a.withText)
+      .slice(0, 16)
+      .map((a) => chip(a.name, browseHash({ person: a.id }), a.withText));
+
+    discoverSection.append(
+      h(
+        'div',
+        { class: 'section-head' },
+        h('h2', {}, '作品をさがす'),
+        h('a', { class: 'link', href: '#/browse', onclick: (e: Event) => (e.preventDefault(), ctx.navigate('#/browse')) }, 'すべての作品から条件で絞り込む'),
+      ),
+      group('ジャンル', genres),
+      lengths.length ? group(`長さ（${ctx.cpm()} 字/分で読んだときの目安）`, lengths) : '',
+      group('作家の生まれた時代', eras),
+      group(
+        '作家（すぐ読める作品が多い順）',
+        topAuthors,
+        h('a', { class: 'chip chip-more', href: '#/authors', onclick: (e: Event) => (e.preventDefault(), ctx.navigate('#/authors')) }, '作家一覧（五十音順）'),
+      ),
+    );
+  }
+
   function renderPicks() {
     clear(picksSection);
     if (!ctx.catalog.loaded) return;
@@ -212,6 +285,7 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
       status,
       results,
       recentSection,
+      discoverSection,
       picksSection,
       h(
         'section',
@@ -271,10 +345,12 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
   root.addEventListener('dragleave', onDragLeave);
 
   const unsubscribe = ctx.onCatalogChange(() => {
+    renderDiscover();
     renderPicks();
     update();
   });
   renderRecent();
+  renderDiscover();
   renderPicks();
   update();
   if (!lastQuery && matchMedia('(pointer: fine)').matches) input.focus();

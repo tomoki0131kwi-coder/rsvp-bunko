@@ -16,7 +16,7 @@ const row = (cells: Record<string, string>) =>
 
 const CSV = [
   '﻿' + HEADER,
-  row({ 作品ID: '000773', 作品名: 'こころ', 作品名読み: 'こころ', 文字遣い種別: '新字新仮名', 作品著作権フラグ: 'なし', 人物ID: '000148', 姓: '夏目', 名: '漱石', 姓読み: 'なつめ', 名読み: 'そうせき', 役割フラグ: '著者', 'XHTML/HTMLファイルURL': 'https://www.aozora.gr.jp/cards/000148/files/773_14560.html', 図書カードURL: 'https://www.aozora.gr.jp/cards/000148/card773.html', テキストファイルURL: 'https://www.aozora.gr.jp/cards/000148/files/773_ruby_5968.zip' }),
+  row({ 作品ID: '000773', 作品名: 'こころ', 作品名読み: 'こころ', 分類番号: 'NDC 913', 生年月日: '1867-02-09', 没年月日: '1916-12-09', 文字遣い種別: '新字新仮名', 作品著作権フラグ: 'なし', 人物ID: '000148', 姓: '夏目', 名: '漱石', 姓読み: 'なつめ', 名読み: 'そうせき', 役割フラグ: '著者', 'XHTML/HTMLファイルURL': 'https://www.aozora.gr.jp/cards/000148/files/773_14560.html', 図書カードURL: 'https://www.aozora.gr.jp/cards/000148/card773.html', テキストファイルURL: 'https://www.aozora.gr.jp/cards/000148/files/773_ruby_5968.zip' }),
   row({ 作品ID: '000127', 作品名: '羅生門', 作品名読み: 'らしょうもん', 文字遣い種別: '新字旧仮名', 作品著作権フラグ: 'なし', 人物ID: '000879', 姓: '芥川', 名: '竜之介', 姓読み: 'あくたがわ', 名読み: 'りゅうのすけ', 役割フラグ: '著者' }),
   row({ 作品ID: '043017', 作品名: 'ジキルとハイド', 作品名読み: 'じきるとはいど', 副題: '「カンマ, と\"引用符\"」', 作品著作権フラグ: 'あり', 人物ID: '001', 姓: 'スティーヴンソン', 名: 'ロバート・ルイス', 姓読み: 'すてぃーう゛んそん', 役割フラグ: '著者' }),
   row({ 作品ID: '043017', 作品名: 'ジキルとハイド', 作品名読み: 'じきるとはいど', 人物ID: '002', 姓: '佐々木', 名: '直次郎', 姓読み: 'ささき', 名読み: 'なおじろう', 役割フラグ: '翻訳者' }),
@@ -48,6 +48,8 @@ describe('parseCatalogCsv', () => {
     expect(kokoro.htmlUrl).toBe('https://www.aozora.gr.jp/cards/000148/files/773_14560.html');
     expect(kokoro.textUrl).toMatch(/773_ruby_5968\.zip$/);
     expect(kokoro.kana).toBe('新字新仮名');
+    expect(kokoro.ndc).toBe('NDC 913');
+    expect(kokoro.people[0]).toMatchObject({ born: '1867-02-09', died: '1916-12-09' });
   });
 });
 
@@ -71,10 +73,17 @@ describe('Catalog.search', () => {
 });
 
 describe('catalog.json の形式', () => {
-  const works = attachMirrorPaths(parseCatalogCsv(CSV), ['cards/000148/files/773_ruby_5968/773_ruby_5968.txt']);
+  const works = attachMirrorPaths(
+    parseCatalogCsv(CSV),
+    ['cards/000148/files/773_ruby_5968/773_ruby_5968.txt'],
+    new Map([['cards/000148/files/773_ruby_5968/773_ruby_5968.txt', 374152]]),
+  );
 
   it('本文ミラーにある作品だけに本文のパスを付ける', () => {
-    expect(works.find((w) => w.id === 773)?.mirrorPath).toBe('cards/000148/files/773_ruby_5968/773_ruby_5968.txt');
+    expect(works.find((w) => w.id === 773)).toMatchObject({
+      mirrorPath: 'cards/000148/files/773_ruby_5968/773_ruby_5968.txt',
+      textSize: 374152,
+    });
     expect(works.find((w) => w.id === 127)?.mirrorPath).toBeUndefined();
   });
 
@@ -82,5 +91,14 @@ describe('catalog.json の形式', () => {
     const back = decodeWorks(JSON.parse(JSON.stringify(encodeWorks(works))));
     expect(back.map(({ htmlUrl: _h, ...w }) => w)).toEqual(works.map(({ htmlUrl: _h, ...w }) => w));
     expect(back.find((w) => w.id === 773)?.cardUrl).toBe('https://www.aozora.gr.jp/cards/000148/card773.html');
+  });
+});
+
+describe('古い形式の catalog.json', () => {
+  it('分類番号・生没年・大きさの無い行も読める', () => {
+    const [w] = decodeWorks([[1, 'a', 'a', '', '', 0, '', [[2, 'n', 'y', '著者']], 'cards/1/card1.html', '', '']]);
+    expect(w).toMatchObject({ id: 1, ndc: '', people: [{ id: 2, name: 'n' }] });
+    expect(w.textSize).toBeUndefined();
+    expect(w.people[0].born).toBeUndefined();
   });
 });

@@ -330,10 +330,12 @@ select {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 .work {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
   width: 100%;
+  min-width: 0;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -341,8 +343,54 @@ select {
   text-align: left;
   cursor: pointer;
 }
-.work:hover {
+.work:hover,
+.work:focus-within {
   border-color: var(--accent);
+}
+/* 作品名のボタンをカード全体に広げ、作家名のボタンだけその上に出す */
+.work-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.work-open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+}
+.work-open:focus-visible {
+  outline: none;
+}
+.work-open:focus-visible::after {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.person-link {
+  position: relative;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.person-link:hover {
+  color: var(--accent);
+  text-decoration-color: currentColor;
+}
+.work-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.work-tags .badge {
+  margin-left: 0;
 }
 .work-title {
   font-family: var(--serif);
@@ -830,4 +878,225 @@ details.field[open] summary {
   font-size: 0.82rem;
   line-height: 1.7;
   color: var(--muted);
+}
+
+/* ---------- さがす ---------- */
+.page-title {
+  flex: 1;
+  margin: 0 8px;
+  font-size: 1.15rem;
+}
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 4px;
+}
+.section-head h2 {
+  margin: 0;
+}
+.section-head .link {
+  font-size: 0.9rem;
+}
+.discover-group {
+  margin-top: 14px;
+}
+.discover-group h3 {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+a.chip:hover {
+  border-color: var(--accent);
+}
+.chip.active {
+  border-color: var(--accent);
+  background: var(--highlight);
+}
+.chip-more {
+  color: var(--accent);
+}
+.chip-count {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.chip-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: -6px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+.chip-remove .icon {
+  width: 16px;
+  height: 16px;
+}
+.browse .chips {
+  margin-top: 12px;
+}
+.facet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 12px;
+  margin-top: 14px;
+}
+.facet {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.facet-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.facet select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.facet select.active {
+  border-color: var(--accent);
+  background: var(--highlight);
+}
+.facet.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.facet.inline select {
+  width: auto;
+}
+.browse-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  margin-top: 14px;
+}
+.check.inline {
+  align-items: center;
+  font-size: 0.92rem;
+}
+.check.inline input {
+  margin-top: 0;
+}
+.result-summary {
+  margin: 16px 2px 8px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.more {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* ---------- 作家一覧 ---------- */
+.jump {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 12px -4px 0;
+  padding: 8px 4px;
+  background: var(--bg);
+}
+.jump-item {
+  display: inline-grid;
+  place-items: center;
+  min-width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+.jump-item:hover {
+  border-color: var(--accent);
+}
+.jump-item.disabled {
+  color: var(--line);
+  background: transparent;
+}
+.author-section {
+  scroll-margin-top: 64px;
+  margin-top: 18px;
+}
+.author-section h2 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.author-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px;
+}
+.author {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+.author:hover {
+  border-color: var(--accent);
+}
+.author-name {
+  font-family: var(--serif);
+  font-weight: 600;
+}
+.author-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.author-meta .badge {
+  margin-left: auto;
 }

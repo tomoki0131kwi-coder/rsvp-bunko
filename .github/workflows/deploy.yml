@@ -30,6 +30,8 @@ jobs:
       - run: npm test
       # 青空文庫の作品一覧 CSV と本文ミラーのファイル一覧から public/catalog.json を作る
       - run: npm run catalog
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -16,7 +16,8 @@ export interface CatalogFile {
   works: CompactWork[];
 }
 
-type CompactPerson = [id: number, name: string, yomi: string, role: string];
+// 後から足した項目は末尾に置き、古い版のアプリでも読めるようにしている
+type CompactPerson = [id: number, name: string, yomi: string, role: string, born?: string, died?: string];
 export type CompactWork = [
   id: number,
   title: string,
@@ -29,6 +30,8 @@ export type CompactWork = [
   cardPath: string,
   textPath: string,
   mirrorPath: string,
+  ndc?: string,
+  textSize?: number,
 ];
 
 const SITE_PREFIX = /^https?:\/\/(www\.)?aozora\.gr\.jp\//;
@@ -36,12 +39,21 @@ const SITE = 'https://www.aozora.gr.jp/';
 const toPath = (url: string) => url.replace(SITE_PREFIX, '');
 const toUrl = (path: string) => (!path || /^https?:/.test(path) ? path : SITE + path);
 
-/** 図書目録とミラーのファイル一覧を突き合わせ、各作品に本文のパスを付ける */
-export function attachMirrorPaths(works: CatalogWork[], mirrorPaths: Iterable<string>): CatalogWork[] {
+/**
+ * 図書目録とミラーのファイル一覧を突き合わせ、各作品に本文のパスを付ける。
+ * sizes（パス → バイト数）があれば、長さの目安として textSize も付ける。
+ */
+export function attachMirrorPaths(
+  works: CatalogWork[],
+  mirrorPaths: Iterable<string>,
+  sizes?: Map<string, number>,
+): CatalogWork[] {
   const index = indexMirrorPaths(mirrorPaths);
   return works.map((w) => {
     const mirrorPath = pickMirrorPath(index.get(w.id), w.textUrl);
-    return mirrorPath ? { ...w, mirrorPath } : { ...w };
+    if (!mirrorPath) return { ...w };
+    const textSize = sizes?.get(mirrorPath);
+    return textSize ? { ...w, mirrorPath, textSize } : { ...w, mirrorPath };
   });
 }
 
@@ -54,10 +66,16 @@ export function encodeWorks(works: CatalogWork[]): CompactWork[] {
     w.kana,
     w.copyrighted ? 1 : 0,
     w.published,
-    w.people.map((p): CompactPerson => [p.id, p.name, p.yomi, p.role]),
+    w.people.map((p): CompactPerson => {
+      const row: CompactPerson = [p.id, p.name, p.yomi, p.role];
+      if (p.born || p.died) row.push(p.born ?? '', p.died ?? '');
+      return row;
+    }),
     toPath(w.cardUrl),
     toPath(w.textUrl),
     w.mirrorPath ?? '',
+    w.ndc,
+    w.textSize ?? 0,
   ]);
 }
 
@@ -71,12 +89,19 @@ export function decodeWorks(rows: CompactWork[]): CatalogWork[] {
       kana: r[4],
       copyrighted: r[5] === 1,
       published: r[6],
-      people: r[7].map(([id, name, yomi, role]) => ({ id, name, yomi, role })),
+      people: r[7].map(([id, name, yomi, role, born, died]) => {
+        const p: CatalogWork['people'][number] = { id, name, yomi, role };
+        if (born) p.born = born;
+        if (died) p.died = died;
+        return p;
+      }),
       cardUrl: toUrl(r[8]),
       htmlUrl: '',
       textUrl: toUrl(r[9]),
+      ndc: r[11] ?? '',
     };
     if (r[10]) w.mirrorPath = r[10];
+    if (r[12]) w.textSize = r[12];
     return w;
   });
 }

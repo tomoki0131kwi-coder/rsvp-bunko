@@ -46,6 +46,9 @@ export interface CatalogPerson {
   name: string;
   yomi: string;
   role: string;
+  /** 生年月日・没年月日（CSV の値のまま。例: 1867-02-09） */
+  born?: string;
+  died?: string;
 }
 
 export interface CatalogWork {
@@ -63,6 +66,10 @@ export interface CatalogWork {
   textUrl: string;
   /** 本文ミラー上のテキストのパス（無ければミラー未収録） */
   mirrorPath?: string;
+  /** 本文ミラー上のテキストのバイト数（長さの目安。不明なら undefined） */
+  textSize?: number;
+  /** 分類番号（CSV の値のまま。例: "NDC 913"、"NDC K913"） */
+  ndc: string;
   /** 作品著作権フラグが「あり」 */
   copyrighted: boolean;
   published: string;
