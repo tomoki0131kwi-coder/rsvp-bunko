@@ -557,13 +557,17 @@ img.gaiji {
   height: 1em;
   width: auto;
   vertical-align: -0.1em;
+  /* 外字画像は白地に黒い字。白地を背景に溶け込ませる */
+  mix-blend-mode: multiply;
 }
 :root[data-theme='dark'] img.gaiji {
   filter: invert(1);
+  mix-blend-mode: screen;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) img.gaiji {
     filter: invert(1);
+    mix-blend-mode: screen;
   }
 }
 

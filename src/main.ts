@@ -1,6 +1,6 @@
 import './styles.css';
 import { Catalog } from './aozora/catalog';
-import { LoadError, loadCatalogWork, loadFromFile, loadFromUrl, setMirrorBase } from './aozora/sources';
+import { LoadError, PARSER_VERSION, loadCatalogWork, loadFromFile, loadFromUrl, setMirrorBase } from './aozora/sources';
 import type { Book } from './types';
 import { h } from './ui/dom';
 import { filterFromParams, browseHash } from './aozora/browseQuery';
@@ -219,11 +219,17 @@ async function route() {
     if (currentBook?.key === key) return showReader(currentBook);
     const book = await withLoading('作品を読み込んでいます…', async (signal) => {
       const cached = await getCachedBook(key);
-      if (cached) return cached;
-      await ensureCatalog();
-      const work = catalog.byId(Number(arg));
-      if (!work) throw new Error(`作品 ID ${arg} が図書目録に見つかりませんでした。`);
-      return loadCatalogWork(work, signal);
+      if (cached && isCurrent(cached)) return cached;
+      try {
+        await ensureCatalog();
+        const work = catalog.byId(Number(arg));
+        if (!work) throw new Error(`作品 ID ${arg} が図書目録に見つかりませんでした。`);
+        return await loadCatalogWork(work, signal);
+      } catch (e) {
+        // 取り直せなければ（オフラインなど）、古い版の本文でも読めるようにする
+        if (cached && !signal.aborted) return cached;
+        throw e;
+      }
     });
     if (book) showReader(book);
     return;
@@ -233,10 +239,16 @@ async function route() {
     if (currentBook?.key === arg) return showReader(currentBook);
     const book = await withLoading('作品を読み込んでいます…', async () => {
       const cached = await getCachedBook(arg);
-      if (cached) return cached;
+      // ファイルから開いた本は取り直せないので、古い版でも保存してある本文を使う
+      if (cached && (isCurrent(cached) || !arg.startsWith('url:'))) return cached;
       if (arg.startsWith('url:')) {
-        await ensureCatalog();
-        return loadFromUrl(arg.slice(4), (id) => catalog.byId(id));
+        try {
+          await ensureCatalog();
+          return await loadFromUrl(arg.slice(4), (id) => catalog.byId(id));
+        } catch (e) {
+          if (cached) return cached;
+          throw e;
+        }
       }
       throw new Error('この本の本文は端末に保存されていません。もう一度ファイルを開いてください。');
     });
@@ -245,6 +257,11 @@ async function route() {
   }
 
   showHome();
+}
+
+/** 端末に保存した本文が、今の解析処理で作ったものか */
+function isCurrent(book: Book): boolean {
+  return (book.parserVersion ?? 1) >= PARSER_VERSION;
 }
 
 function bookHash(book: Book): string {

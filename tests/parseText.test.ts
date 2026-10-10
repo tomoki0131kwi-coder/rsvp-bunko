@@ -31,10 +31,9 @@ describe('parseAozoraText', () => {
     expect(book.blocks[2].runs[0]).toEqual({ text: '広い門', ruby: 'もん' });
   });
 
-  it('外字注記を画像または Unicode 文字にする', () => {
-    const runs = book.blocks[3].runs;
-    expect(runs[0]).toMatchObject({ text: '〓', gaijiSrc: `${MIRROR}gaiji/1-84/1-84-77.png` });
-    expect(texts[3]).toBe('〓と彿の例。');
+  it('外字注記を Unicode の文字にする（第3水準の面区点・U+ 指定）', () => {
+    expect(texts[3]).toBe('挘と彿の例。');
+    expect(book.blocks[3].runs.some((r) => r.gaijiSrc)).toBe(false);
   });
 
   it('改ページを区切りにし、底本以降を書誌情報にする', () => {
@@ -59,6 +58,18 @@ describe('parseInline', () => {
       { text: 'ロンドン', ruby: '倫敦' },
       { text: 'へ行った' },
     ]);
+  });
+
+  it('外字を含む語にもルビを掛ける（『蜘蛛の糸』の「犍陀多」）', () => {
+    expect(runsOf('その※［＃「牛へん＋建」、第3水準1-87-71］陀多《かんだた》と云う')).toEqual([
+      { text: 'その' },
+      { text: '犍陀多', ruby: 'かんだた' },
+      { text: 'と云う' },
+    ]);
+  });
+
+  it('文字にできない外字は下駄記号にする', () => {
+    expect(runsOf('あ※［＃「謎の字」、ページ数-行数］い')).toEqual([{ text: 'あ〓い' }]);
   });
 
   it('々を含む漢字列をひとまとまりとして扱う', () => {

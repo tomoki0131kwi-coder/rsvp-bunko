@@ -94,17 +94,26 @@ function readRuby(el: Element): { base: string; ruby: string } {
   let base = '';
   let ruby = '';
   for (const c of Array.from(el.childNodes)) {
-    if (c.nodeType === 3) {
-      base += c.nodeValue ?? '';
-    } else if (c.nodeType === 1) {
+    if (c.nodeType === 1) {
       const t = (c as Element).tagName.toUpperCase();
       if (t === 'RT') ruby += c.textContent ?? '';
-      else if (t === 'RP') continue;
-      else if (t === 'IMG') base += gaijiTextFromAlt((c as Element).getAttribute('alt') ?? '');
-      else base += c.textContent ?? '';
+      else if (t !== 'RP') base += inlineText(c);
+    } else {
+      base += inlineText(c);
     }
   }
   return { base: base.replace(/[\r\n\t]/g, ''), ruby: ruby.replace(/[\r\n\t]/g, '') };
+}
+
+/** ルビの親文字のテキスト。<rb> の中の外字画像も文字（または下駄記号）にする */
+function inlineText(node: Node): string {
+  if (node.nodeType === 3) return node.nodeValue ?? '';
+  if (node.nodeType !== 1) return '';
+  const el = node as Element;
+  const tag = el.tagName.toUpperCase();
+  if (tag === 'IMG') return gaijiTextFromAlt(el.getAttribute('alt') ?? '');
+  if (tag === 'RP' || tag === 'RT' || (tag === 'SPAN' && /\bnotes\b/.test(el.getAttribute('class') ?? ''))) return '';
+  return Array.from(el.childNodes).map(inlineText).join('');
 }
 
 function handleImage(el: Element, b: BlockBuilder, baseUrl?: string): void {
