@@ -249,15 +249,9 @@ select {
   letter-spacing: 0.08em;
 }
 .brand-mark {
-  display: inline-grid;
-  place-items: center;
   width: 34px;
   height: 34px;
-  border-radius: 9px;
-  background: var(--accent);
-  color: var(--accent-text);
-  font-size: 1.1rem;
-  letter-spacing: 0;
+  flex: none;
 }
 
 .home {
@@ -1099,4 +1093,35 @@ a.chip:hover {
 }
 .author-meta .badge {
   margin-left: auto;
+}
+
+/* ---------- インストールの案内 ---------- */
+.install-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--highlight);
+}
+.install-card[hidden] {
+  display: none;
+}
+.install-card p {
+  margin: 0;
+}
+.install-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
 }

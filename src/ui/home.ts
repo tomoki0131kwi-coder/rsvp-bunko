@@ -4,6 +4,7 @@ import { FACET_BY_KEY, type FacetKey } from '../aozora/facets';
 import type { CatalogWork } from '../types';
 import { loadRecent, removeRecent, type RecentEntry } from '../util/storage';
 import { ICONS, clear, h, icon } from './dom';
+import { installState, isStandalone, onInstallChange, promptInstall } from './install';
 import { formatReadingTime, workItem as sharedWorkItem } from './workList';
 
 export interface HomeContext {
@@ -85,6 +86,7 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
   const recentSection = h('section', { class: 'section' });
   const picksSection = h('section', { class: 'section' });
   const discoverSection = h('section', { class: 'section discover' });
+  const installSection = h('section', { class: 'install-card', hidden: true });
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   input.addEventListener('input', () => {
@@ -242,6 +244,27 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
     );
   }
 
+  /** アプリとしてインストールできるときだけ出す案内 */
+  function renderInstall() {
+    clear(installSection);
+    const state = installState();
+    installSection.hidden = isStandalone() || state === 'unavailable';
+    if (installSection.hidden) return;
+    if (state === 'installed') {
+      installSection.append(h('p', {}, 'インストールしました。ホーム画面やアプリ一覧の「RSVP文庫」から開けます。'));
+      return;
+    }
+    installSection.append(
+      h(
+        'div',
+        { class: 'install-text' },
+        h('strong', {}, 'アプリとしてインストール'),
+        h('span', { class: 'muted small' }, 'ホーム画面から、ブラウザの枠のない画面で開けるようになります。'),
+      ),
+      h('button', { class: 'button primary', type: 'button', onclick: () => void promptInstall() }, 'インストール'),
+    );
+  }
+
   function renderPicks() {
     clear(picksSection);
     if (!ctx.catalog.loaded) return;
@@ -270,7 +293,7 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
     h(
       'header',
       { class: 'topbar' },
-      h('h1', { class: 'brand' }, h('span', { class: 'brand-mark' }, '速'), 'RSVP文庫'),
+      h('h1', { class: 'brand' }, h('img', { class: 'brand-mark', src: './favicon.svg', alt: '' }), 'RSVP文庫'),
       h('button', { class: 'icon-button', type: 'button', 'aria-label': '設定', onclick: ctx.openSettings }, icon(ICONS.settings)),
     ),
     h(
@@ -281,6 +304,7 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
         { class: 'intro' },
         h('p', {}, '青空文庫の作品を、文節ごとに画面の中央へ次々と表示して読む「高速逐次提示（RSVP）」リーダーです。視線を動かさずに読めます。'),
       ),
+      installSection,
       h('div', { class: 'search' }, icon(ICONS.search), input),
       status,
       results,
@@ -349,6 +373,8 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
     renderPicks();
     update();
   });
+  const unsubscribeInstall = onInstallChange(renderInstall);
+  renderInstall();
   renderRecent();
   renderDiscover();
   renderPicks();
@@ -358,6 +384,7 @@ export function renderHome(root: HTMLElement, ctx: HomeContext): () => void {
   return () => {
     clearTimeout(timer);
     unsubscribe();
+    unsubscribeInstall();
     root.removeEventListener('drop', onDrop);
     root.removeEventListener('dragover', onDragOver);
     root.removeEventListener('dragleave', onDragLeave);
