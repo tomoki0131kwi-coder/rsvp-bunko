@@ -3,6 +3,9 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  # 図書目録（青空文庫の作品一覧）を新しくするため、毎週月曜 4:17（日本時間）に作り直す
+  schedule:
+    - cron: '17 19 * * 0'
   workflow_dispatch:
 
 permissions:
@@ -25,6 +28,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # 青空文庫の作品一覧 CSV と本文ミラーのファイル一覧から public/catalog.json を作る
+      - run: npm run catalog
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

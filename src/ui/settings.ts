@@ -1,4 +1,4 @@
-import { DEFAULT_MIRROR } from '../aozora/sources';
+import { DEFAULT_TEXT_MIRROR } from '../aozora/mirror';
 import { DEFAULT_SETTINGS, type Settings, type Theme } from '../util/storage';
 import { ICONS, h, icon } from './dom';
 
@@ -66,7 +66,7 @@ export function openSettingsDialog(current: Settings, onChange: (s: Settings) =>
   const mirrorInput = h('input', {
     type: 'url',
     class: 'text-input',
-    placeholder: DEFAULT_MIRROR,
+    placeholder: DEFAULT_TEXT_MIRROR,
     value: s.mirror,
     onchange: (e: Event) => set('mirror', (e.target as HTMLInputElement).value.trim()),
   });
@@ -136,12 +136,12 @@ export function openSettingsDialog(current: Settings, onChange: (s: Settings) =>
         'details',
         { class: 'field' },
         h('summary', {}, '詳細設定'),
-        h('div', { class: 'field-label' }, '作品データの取得元（ミラー）'),
+        h('div', { class: 'field-label' }, '本文の取得元（ミラー）'),
         mirrorInput,
         h(
           'small',
           { class: 'muted' },
-          '青空文庫のサイトと同じディレクトリ構成で、CORS を許可している URL を指定します。空欄なら GitHub の公開リポジトリを使います。',
+          'aozorahack/aozorabunko_text と同じ構成（cards/人物ID/files/ZIP名/ZIP名.txt）で、CORS を許可している URL を指定します。空欄なら aozorabunko_text（GitHub）を使います。',
         ),
         h(
           'button',

@@ -2,61 +2,43 @@ import { unzipSync } from 'fflate';
 import type { Book, CatalogWork } from '../types';
 import { peopleLabel } from './catalogParse';
 import { decodeBytes } from './decode';
+import { AOZORA_SITE, DEFAULT_TEXT_MIRROR, zipUrlToMirrorPath } from './mirror';
 import { parseAozoraHtml, type ParsedBook } from './parseHtml';
 import { parseAozoraText } from './parseText';
 
-/**
- * 青空文庫本体（www.aozora.gr.jp）は CORS ヘッダーを返さないため、ブラウザから直接は取得できない。
- * 青空文庫が GitHub で公開しているリポジトリ（aozorabunko/aozorabunko）をミラーとして使う。
- * raw.githubusercontent.com は Access-Control-Allow-Origin: * を返すので、静的サイトから取得できる。
- */
-export const DEFAULT_MIRROR = 'https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/';
+let mirrorBase = DEFAULT_TEXT_MIRROR;
 
-export const CATALOG_PATH = 'index_pages/list_person_all_extended_utf8.zip';
-
-const AOZORA_HOSTS = new Set(['www.aozora.gr.jp', 'aozora.gr.jp']);
-
-let mirrorBase = DEFAULT_MIRROR;
-
+/** 本文ミラーのベース URL を設定する（空なら既定のミラー） */
 export function setMirrorBase(base: string): void {
-  mirrorBase = (base.trim() || DEFAULT_MIRROR).replace(/\/?$/, '/');
+  mirrorBase = (base.trim() || DEFAULT_TEXT_MIRROR).replace(/\/?$/, '/');
 }
 
 export function getMirrorBase(): string {
   return mirrorBase;
 }
 
-/** 青空文庫サイトの URL をミラーの URL に置き換える。それ以外の URL はそのまま返す。 */
-export function toMirrorUrl(url: string, base = mirrorBase): string {
-  try {
-    const u = new URL(url);
-    if (AOZORA_HOSTS.has(u.hostname)) return base + u.pathname.replace(/^\/+/, '');
-    return u.href;
-  } catch {
-    // サイトルート相対パス（cards/000148/files/773_14560.html など）
-    return base + url.replace(/^\/+/, '');
+/** 読み込めなかった理由と、利用者が次に取れる行動（図書カードを開くなど）を持つエラー */
+export class LoadError extends Error {
+  constructor(
+    message: string,
+    public readonly link?: { href: string; label: string },
+  ) {
+    super(message);
   }
 }
 
-export class FetchError extends Error {}
+const OFFLINE_HINT = '青空文庫からダウンロードしたファイルを「ファイルを開く」で読み込むこともできます。';
 
-export async function fetchBytes(url: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; url: string }> {
-  const candidates = [...new Set([toMirrorUrl(url), url])];
-  let firstError: unknown;
-  for (const candidate of candidates) {
-    try {
-      const res = await fetch(candidate, { signal });
-      if (!res.ok) throw new FetchError(`HTTP ${res.status}: ${candidate}`);
-      return { bytes: new Uint8Array(await res.arrayBuffer()), url: candidate };
-    } catch (e) {
-      if (signal?.aborted) throw e;
-      firstError ??= e;
-    }
+export async function fetchBytes(url: string, signal?: AbortSignal): Promise<Uint8Array> {
+  let res: Response;
+  try {
+    res = await fetch(url, { signal });
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    throw new LoadError(`作品ファイルを取得できませんでした（ネットワークエラー: ${url}）。${OFFLINE_HINT}`);
   }
-  throw new FetchError(
-    `作品ファイルを取得できませんでした（${firstError instanceof Error ? firstError.message : String(firstError)}）。` +
-      'ネットワーク接続を確認するか、青空文庫からダウンロードしたファイルを「ファイルを開く」で読み込んでください。',
-  );
+  if (!res.ok) throw new LoadError(`作品ファイルを取得できませんでした（HTTP ${res.status}: ${url}）。${OFFLINE_HINT}`);
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 /** ZIP の中から本文ファイル（.txt を優先、なければ .html）を取り出す */
@@ -68,7 +50,10 @@ export function extractFromZip(bytes: Uint8Array): { name: string; bytes: Uint8A
   return { name: pick, bytes: files[pick] };
 }
 
-/** バイト列とファイル名（拡張子）から本文を解析する */
+/**
+ * バイト列とファイル名（拡張子）から本文を解析する。
+ * 外字画像は <img> で読むだけなので CORS は不要。青空文庫のサイトから直接表示する。
+ */
 export function parseBytes(name: string, bytes: Uint8Array, baseUrl?: string): ParsedBook {
   if (/\.zip$/i.test(name) || (bytes[0] === 0x50 && bytes[1] === 0x4b)) {
     const inner = extractFromZip(bytes);
@@ -78,47 +63,63 @@ export function parseBytes(name: string, bytes: Uint8Array, baseUrl?: string): P
   if (/\.x?html?$/i.test(name) || /^\s*(<\?xml|<!DOCTYPE|<html)/i.test(text)) {
     return parseAozoraHtml(text, baseUrl);
   }
-  return parseAozoraText(text, mirrorBase);
+  return parseAozoraText(text, AOZORA_SITE);
 }
 
 export async function loadCatalogWork(work: CatalogWork, signal?: AbortSignal): Promise<Book> {
-  const errors: string[] = [];
-  for (const url of [work.htmlUrl, work.textUrl].filter(Boolean)) {
-    try {
-      const { bytes, url: fetched } = await fetchBytes(url, signal);
-      const parsed = parseBytes(url, bytes, fetched);
-      if (!parsed.blocks.length) throw new Error('本文が空でした');
-      return {
-        ...parsed,
-        title: work.title || parsed.title,
-        subtitle: work.subtitle || parsed.subtitle,
-        author: peopleLabel(work) || parsed.author,
-        key: `aozora:${work.id}`,
-        source: { kind: 'catalog', workId: work.id, url },
-      };
-    } catch (e) {
-      if (signal?.aborted) throw e;
-      errors.push(e instanceof Error ? e.message : String(e));
-    }
+  if (!work.mirrorPath) {
+    throw new LoadError(
+      `『${work.title}』の本文は、このアプリが使っている本文ミラーに収録されていません（ミラーより新しく公開された作品など）。` +
+        `図書カードからテキストファイル（ZIP）をダウンロードし、ホームの「ファイルを開く」で読み込んでください。`,
+      work.cardUrl ? { href: work.cardUrl, label: '青空文庫の図書カードを開く' } : undefined,
+    );
   }
-  throw new Error(errors.join('\n') || 'この作品には読み込めるファイルがありません');
+  const url = mirrorBase + work.mirrorPath;
+  const parsed = parseBytes(work.mirrorPath, await fetchBytes(url, signal));
+  if (!parsed.blocks.length) throw new LoadError('本文が空でした');
+  return {
+    ...parsed,
+    title: work.title || parsed.title,
+    subtitle: work.subtitle || parsed.subtitle,
+    author: peopleLabel(work) || parsed.author,
+    key: `aozora:${work.id}`,
+    source: { kind: 'catalog', workId: work.id, url: work.cardUrl || url },
+  };
 }
 
-/** 図書カードまたは作品ファイルの URL から読み込む */
-export async function loadFromUrl(url: string, signal?: AbortSignal): Promise<Book> {
-  const { bytes, url: fetched } = await fetchBytes(url, signal);
-  const path = new URL(url, location.href).pathname;
-  if (/card\d+\.html$/.test(path)) {
-    // 図書カード: XHTML 版、なければテキスト版へのリンクを探す
-    const html = decodeBytes(bytes);
-    const links = [...html.matchAll(/href="([^"]*files\/[^"]+\.(?:html|zip))"/g)].map((m) => m[1]);
-    const target = links.find((l) => l.endsWith('.html')) ?? links.find((l) => l.endsWith('.zip'));
-    if (!target) throw new Error('図書カードに作品ファイルへのリンクが見つかりませんでした');
-    const original = new URL(target, url).href;
-    const book = await loadFromUrl(original, signal);
-    return { ...book, key: `url:${original}`, source: { kind: 'url', url: original } };
+/** 青空文庫の URL から作品 ID を取り出す（図書カード: card773.html、作品ファイル: 773_ruby_5968.zip など） */
+export function workIdFromAozoraUrl(url: string): number | undefined {
+  const card = /cards\/\d+\/card(\d+)\.html/.exec(url);
+  if (card) return Number(card[1]);
+  const file = /cards\/\d+\/files\/(\d+)_[^/]+\.(?:html?|zip|txt)$/.exec(url);
+  return file ? Number(file[1]) : undefined;
+}
+
+/**
+ * URL から読み込む。青空文庫のサイトはブラウザから直接取れないので、
+ * 図書カードや作品ファイルの URL は図書目録・本文ミラーに置き換えて取得する。
+ */
+export async function loadFromUrl(
+  url: string,
+  lookup: (id: number) => CatalogWork | undefined,
+  signal?: AbortSignal,
+): Promise<Book> {
+  const isAozora = /^https?:\/\/(www\.)?aozora\.gr\.jp\//.test(url);
+  if (isAozora) {
+    const id = workIdFromAozoraUrl(url);
+    const work = id !== undefined ? lookup(id) : undefined;
+    if (work) return loadCatalogWork(work, signal);
+    const mirrorPath = zipUrlToMirrorPath(url);
+    if (mirrorPath) {
+      const parsed = parseBytes(mirrorPath, await fetchBytes(mirrorBase + mirrorPath, signal));
+      return { ...parsed, key: `url:${url}`, source: { kind: 'url', url } };
+    }
+    throw new LoadError(
+      'この URL の作品は図書目録に見つかりませんでした。青空文庫の図書カードまたは作品ファイル（ZIP）の URL を指定してください。',
+    );
   }
-  const parsed = parseBytes(path, bytes, fetched);
+  const path = new URL(url, location.href).pathname;
+  const parsed = parseBytes(path, await fetchBytes(url, signal), url);
   return { ...parsed, key: `url:${url}`, source: { kind: 'url', url } };
 }
 

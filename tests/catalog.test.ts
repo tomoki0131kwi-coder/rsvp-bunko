@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Catalog } from '../src/aozora/catalog';
+import { attachMirrorPaths, decodeWorks, encodeWorks } from '../src/aozora/catalogFormat';
 import { parseCatalogCsv, peopleLabel } from '../src/aozora/catalogParse';
 import { parseCsv } from '../src/aozora/csv';
 
@@ -15,7 +16,7 @@ const row = (cells: Record<string, string>) =>
 
 const CSV = [
   '﻿' + HEADER,
-  row({ 作品ID: '000773', 作品名: 'こころ', 作品名読み: 'こころ', 文字遣い種別: '新字新仮名', 作品著作権フラグ: 'なし', 人物ID: '000148', 姓: '夏目', 名: '漱石', 姓読み: 'なつめ', 名読み: 'そうせき', 役割フラグ: '著者', 'XHTML/HTMLファイルURL': 'https://www.aozora.gr.jp/cards/000148/files/773_14560.html', テキストファイルURL: 'https://www.aozora.gr.jp/cards/000148/files/773_ruby_5968.zip' }),
+  row({ 作品ID: '000773', 作品名: 'こころ', 作品名読み: 'こころ', 文字遣い種別: '新字新仮名', 作品著作権フラグ: 'なし', 人物ID: '000148', 姓: '夏目', 名: '漱石', 姓読み: 'なつめ', 名読み: 'そうせき', 役割フラグ: '著者', 'XHTML/HTMLファイルURL': 'https://www.aozora.gr.jp/cards/000148/files/773_14560.html', 図書カードURL: 'https://www.aozora.gr.jp/cards/000148/card773.html', テキストファイルURL: 'https://www.aozora.gr.jp/cards/000148/files/773_ruby_5968.zip' }),
   row({ 作品ID: '000127', 作品名: '羅生門', 作品名読み: 'らしょうもん', 文字遣い種別: '新字旧仮名', 作品著作権フラグ: 'なし', 人物ID: '000879', 姓: '芥川', 名: '竜之介', 姓読み: 'あくたがわ', 名読み: 'りゅうのすけ', 役割フラグ: '著者' }),
   row({ 作品ID: '043017', 作品名: 'ジキルとハイド', 作品名読み: 'じきるとはいど', 副題: '「カンマ, と\"引用符\"」', 作品著作権フラグ: 'あり', 人物ID: '001', 姓: 'スティーヴンソン', 名: 'ロバート・ルイス', 姓読み: 'すてぃーう゛んそん', 役割フラグ: '著者' }),
   row({ 作品ID: '043017', 作品名: 'ジキルとハイド', 作品名読み: 'じきるとはいど', 人物ID: '002', 姓: '佐々木', 名: '直次郎', 姓読み: 'ささき', 名読み: 'なおじろう', 役割フラグ: '翻訳者' }),
@@ -52,7 +53,7 @@ describe('parseCatalogCsv', () => {
 
 describe('Catalog.search', () => {
   const catalog = new Catalog();
-  catalog.setWorks(parseCatalogCsv(CSV), Date.now());
+  catalog.setWorks(parseCatalogCsv(CSV));
 
   it('作品名・読み・作家名（ひらがな・カタカナ問わず）で引ける', () => {
     expect(catalog.search('こころ').works.map((w) => w.id)).toEqual([773]);
@@ -66,5 +67,20 @@ describe('Catalog.search', () => {
   it('作品名と著者名で 1 件を特定できる', () => {
     expect(catalog.find('羅生門', '芥川竜之介')?.id).toBe(127);
     expect(catalog.find('羅生門', '夏目漱石')).toBeUndefined();
+  });
+});
+
+describe('catalog.json の形式', () => {
+  const works = attachMirrorPaths(parseCatalogCsv(CSV), ['cards/000148/files/773_ruby_5968/773_ruby_5968.txt']);
+
+  it('本文ミラーにある作品だけに本文のパスを付ける', () => {
+    expect(works.find((w) => w.id === 773)?.mirrorPath).toBe('cards/000148/files/773_ruby_5968/773_ruby_5968.txt');
+    expect(works.find((w) => w.id === 127)?.mirrorPath).toBeUndefined();
+  });
+
+  it('圧縮形式に変換して元に戻せる', () => {
+    const back = decodeWorks(JSON.parse(JSON.stringify(encodeWorks(works))));
+    expect(back.map(({ htmlUrl: _h, ...w }) => w)).toEqual(works.map(({ htmlUrl: _h, ...w }) => w));
+    expect(back.find((w) => w.id === 773)?.cardUrl).toBe('https://www.aozora.gr.jp/cards/000148/card773.html');
   });
 });

@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "catalog": "tsx scripts/build-catalog.ts"
   },
   "dependencies": {
     "budoux": "^0.9.3",
@@ -17,6 +18,7 @@
   },
   "devDependencies": {
     "happy-dom": "^20.14.6",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vite": "^8.3.4",
     "vitest": "^5.0.3"
