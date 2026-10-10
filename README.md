@@ -81,9 +81,11 @@ npm run preview   # ビルド結果の確認
   本文ファイルの大きさ（長さの目安）は GitHub API の git/trees から取ります（ワークフローの `GITHUB_TOKEN` を使用）。目録の ZIP と同じ版が無い場合は、ミラーにある版のうちルビ付き・版番号の大きいものを使います
 - **ミラー未収録の作品**: 検索結果に「本文ミラー未収録」と表示し、開こうとすると図書カードへのリンクを出します。
   図書カードからダウンロードした ZIP を「ファイルを開く」で読み込めば読めます
-- **外字**: 注記の JIS X 0213 の面区点（例: `※［＃「牛へん＋建」、第3水準1-87-71］` → 犍）や `U+XXXX` から Unicode の文字にします。
-  面区点の対応表 `src/aozora/jisx0213.json` は `scripts/gen-jisx0213.py` で作ります（Python 標準の `euc_jis_2004` コーデックを使い、第3・第4水準の 4,354 字を収録）。
+- **外字**: 注記の JIS X 0213 の面区点（例: `※［＃「牛へん＋建」、第3水準1-87-71］` → 犍、`※［＃始め二重山括弧、1-1-52］` → 《）や `U+XXXX` から Unicode の文字にします。
+  対応表は、青空文庫の XHTML を作る変換ツール [aozorahack/aozora2html](https://github.com/aozorahack/aozora2html)（CC0）の `yml/jis2ucs.yml` から `scripts/gen-aozora-tables.mjs` で作ります（`src/aozora/jisx0213.json`）。
+  第1・第2水準のうち表に入れていないものは、ブラウザの `TextDecoder('euc-jp')` で求めます。
   文字にできない外字だけ、青空文庫サイトの外字画像を `<img>` で表示します（画像の表示には CORS は不要）
+- **アクセント分解**: 欧文の `〔Humanite'〕` のような書き方を `Humanité` にします。表は同じく aozora2html の `yml/accent_table.yml` から作ります（`src/aozora/accents.json`）
 
 本文の取得元は設定画面の「詳細設定」で、同じ構成のミラーに変更できます。
 
@@ -103,15 +105,25 @@ npm run preview   # ビルド結果の確認
 
 読書位置はチャンク番号ではなく本文中の文字位置で保存するので、表示単位の設定を変えても位置がずれません。
 
+### 全作品の検査
+
+`scripts/scan-texts.ts` で、本文ミラーの全テキストを解析し、外字が「〓」や画像になる箇所、本文に残った注記記号などを数えられます。
+
+```bash
+git clone --depth 1 https://github.com/aozorahack/aozorabunko_text /tmp/aozorabunko_text
+npx tsx scripts/scan-texts.ts /tmp/aozorabunko_text/cards report.json
+```
+
 ## 参照した資料
 
 - 青空文庫「[収録ファイルの取り扱い規準](https://www.aozora.gr.jp/guide/kijyunn.html)」— 作品ファイルの利用条件。本アプリは作品を再配布せず、利用者のブラウザが都度取得して表示します。作品情報画面には各ファイル末尾の底本・入力者・校正者の情報をそのまま表示します
 - 青空文庫「[注記一覧](https://www.aozora.gr.jp/annotation/)」「[テキスト入力ルール](https://www.aozora.gr.jp/aozora-manual/index-input.html)」— テキスト版の書式
 - [aozorahack/aozorabunko_text](https://github.com/aozorahack/aozorabunko_text) — 本文テキストのミラー（README に配置と更新方法の説明あり）
+- [aozorahack/aozora2html](https://github.com/aozorahack/aozora2html)（CC0）— 外字（JIS X 0213 → Unicode）とアクセント分解の対応表の元データ
 - [BudouX](https://github.com/google/budoux)（Apache License 2.0）、[fflate](https://github.com/101arrowz/fflate)（MIT License）— 同梱ライブラリ。ライセンス文は `public/THIRD_PARTY_LICENSES.txt`
 
 ## 既知の制約
 
-- 挿絵は表示しません。外字のうち、注記に面区点も `U+XXXX` も無いもの（「上バー付きA小文字」のように名前だけのもの）は「〓」になります。また、第4水準の一部（Unicode の拡張漢字）は、端末のフォントによっては表示できないことがあります
+- 挿絵は表示しません。外字のうち、注記に面区点も `U+XXXX` も無いもの（異体字・くずし字・屋号の記号など、Unicode に無い字形が多い）は「〓」になります。また、第4水準の一部（Unicode の拡張漢字）は、端末のフォントによっては表示できないことがあります
 - 漢文の返り点は省略します。字下げ・字詰め・割り注などのレイアウト注記は反映しません
 - 本文ミラー（aozorahack/aozorabunko_text）は 2023 年 3 月 22 日のコミットを最後に更新が止まっています。それ以降に公開・修正された作品は、ミラーに無いか旧版になります。読めない作品は、青空文庫からダウンロードしたファイルを「ファイルを開く」で読み込んでください

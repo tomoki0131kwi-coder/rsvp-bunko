@@ -10,8 +10,9 @@ import { parseAozoraText } from './parseText';
  * 本文の解析処理の版。解析結果が変わる修正をしたら上げる。
  * 端末に保存した本文がこれより古ければ、取り直せるものは取り直す。
  * 2: 第3・第4水準の外字を Unicode の文字にする（以前は画像・下駄記号）
+ * 3: 第1・第2水準の番号の外字（《》〔〕など）とアクセント分解（〔e'〕など）を文字にする
  */
-export const PARSER_VERSION = 2;
+export const PARSER_VERSION = 3;
 
 let mirrorBase = DEFAULT_TEXT_MIRROR;
 
