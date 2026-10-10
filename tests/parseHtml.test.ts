@@ -36,10 +36,25 @@ describe('parseAozoraHtml', () => {
     expect(book.blocks[4].type).toBe('break');
   });
 
-  it('外字画像の URL を作品ファイル基準で解決する', () => {
-    const gaiji = book.blocks[5].runs.find((r) => r.gaijiSrc);
-    expect(gaiji?.gaijiSrc).toBe('https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/gaiji/1-84/1-84-77.png');
-    expect(gaiji?.gaijiAlt).toBe('てへん＋劣');
+  it('第3・第4水準の外字は Unicode の文字にする', () => {
+    // alt="※(「てへん＋劣」、第3水準1-84-77)" → 挘（U+6318）
+    const text = book.blocks[5].runs.map((r) => r.text).join('');
+    expect(text).toBe('外字の例挘です。');
+    expect(book.blocks[5].runs.some((r) => r.gaijiSrc)).toBe(false);
+  });
+
+  it('文字にできない外字は画像の URL を作品ファイル基準で解決する', () => {
+    const html = '<div class="main_text">あ<img src="../../../gaiji/other/x.png" alt="※(「謎の字」、ページ数-行数)" class="gaiji" />い<br /></div>';
+    const b = parseAozoraHtml(html, BASE);
+    const gaiji = b.blocks[0].runs.find((r) => r.gaijiSrc);
+    expect(gaiji?.gaijiSrc).toBe('https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/gaiji/other/x.png');
+    expect(gaiji?.gaijiAlt).toBe('謎の字');
+  });
+
+  it('ルビの掛かる語に外字が含まれていても文字にする', () => {
+    const html =
+      '<div class="main_text"><ruby><rb><img src="../../../gaiji/1-87/1-87-71.png" alt="※(「牛へん＋建」、第3水準1-87-71)" class="gaiji" />陀多</rb><rp>（</rp><rt>かんだた</rt><rp>）</rp></ruby><br /></div>';
+    expect(parseAozoraHtml(html, BASE).blocks[0].runs).toEqual([{ text: '犍陀多', ruby: 'かんだた' }]);
   });
 
   it('ブロック要素内の行も段落として扱う', () => {

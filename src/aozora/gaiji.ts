@@ -1,3 +1,5 @@
+import JISX0213 from './jisx0213.json';
+
 /**
  * 外字注記（例: ※［＃「てへん＋劣」、第3水準1-84-77］、※［＃「にんべん＋發」、U+5F7F、19-下-5］）の解釈。
  * 参考: 青空文庫「注記一覧」https://www.aozora.gr.jp/annotation/ の外字の項
@@ -23,8 +25,17 @@ export function parseGaijiNote(note: string): GaijiInfo {
     if (cp > 0 && cp <= 0x10ffff) info.char = String.fromCodePoint(cp);
   }
   const jis = /第[34]水準\s*(\d)-(\d{1,2})-(\d{1,2})/.exec(note) ?? /(\d)-(\d{1,2})-(\d{1,2})/.exec(note);
-  if (jis) info.jis = `${jis[1]}-${jis[2]}-${jis[3]}`;
+  if (jis) {
+    info.jis = `${Number(jis[1])}-${Number(jis[2])}-${Number(jis[3])}`;
+    // 第3・第4水準の文字は Unicode に変換できる（scripts/gen-jisx0213.py で作った対応表）
+    info.char ??= jisToUnicode(info.jis);
+  }
   return info;
+}
+
+/** JIS X 0213 の面区点（"1-87-71"）を Unicode の文字にする。対応表に無ければ undefined */
+export function jisToUnicode(jis: string): string | undefined {
+  return (JISX0213 as Record<string, string>)[jis];
 }
 
 /**

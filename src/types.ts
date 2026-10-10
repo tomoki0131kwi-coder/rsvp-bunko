@@ -38,6 +38,8 @@ export interface Book {
   /** 底本・入力者などの書誌情報（青空文庫ファイル末尾） */
   bibliography?: string;
   source: BookSource;
+  /** 本文を解析した処理の版（PARSER_VERSION）。古い版で保存した本文は取り直す */
+  parserVersion?: number;
 }
 
 /** 図書目録の 1 作品 */

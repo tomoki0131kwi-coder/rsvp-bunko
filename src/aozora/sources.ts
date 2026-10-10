@@ -6,6 +6,13 @@ import { AOZORA_SITE, DEFAULT_TEXT_MIRROR, zipUrlToMirrorPath } from './mirror';
 import { parseAozoraHtml, type ParsedBook } from './parseHtml';
 import { parseAozoraText } from './parseText';
 
+/**
+ * 本文の解析処理の版。解析結果が変わる修正をしたら上げる。
+ * 端末に保存した本文がこれより古ければ、取り直せるものは取り直す。
+ * 2: 第3・第4水準の外字を Unicode の文字にする（以前は画像・下駄記号）
+ */
+export const PARSER_VERSION = 2;
+
 let mirrorBase = DEFAULT_TEXT_MIRROR;
 
 /** 本文ミラーのベース URL を設定する（空なら既定のミラー） */
@@ -84,6 +91,7 @@ export async function loadCatalogWork(work: CatalogWork, signal?: AbortSignal): 
     author: peopleLabel(work) || parsed.author,
     key: `aozora:${work.id}`,
     source: { kind: 'catalog', workId: work.id, url: work.cardUrl || url },
+    parserVersion: PARSER_VERSION,
   };
 }
 
@@ -112,7 +120,7 @@ export async function loadFromUrl(
     const mirrorPath = zipUrlToMirrorPath(url);
     if (mirrorPath) {
       const parsed = parseBytes(mirrorPath, await fetchBytes(mirrorBase + mirrorPath, signal));
-      return { ...parsed, key: `url:${url}`, source: { kind: 'url', url } };
+      return { ...parsed, key: `url:${url}`, source: { kind: 'url', url }, parserVersion: PARSER_VERSION };
     }
     throw new LoadError(
       'この URL の作品は図書目録に見つかりませんでした。青空文庫の図書カードまたは作品ファイル（ZIP）の URL を指定してください。',
@@ -120,7 +128,7 @@ export async function loadFromUrl(
   }
   const path = new URL(url, location.href).pathname;
   const parsed = parseBytes(path, await fetchBytes(url, signal), url);
-  return { ...parsed, key: `url:${url}`, source: { kind: 'url', url } };
+  return { ...parsed, key: `url:${url}`, source: { kind: 'url', url }, parserVersion: PARSER_VERSION };
 }
 
 export async function loadFromFile(file: File): Promise<Book> {
@@ -130,5 +138,6 @@ export async function loadFromFile(file: File): Promise<Book> {
     ...parsed,
     key: `file:${file.name}:${file.size}`,
     source: { kind: 'file', fileName: file.name },
+    parserVersion: PARSER_VERSION,
   };
 }

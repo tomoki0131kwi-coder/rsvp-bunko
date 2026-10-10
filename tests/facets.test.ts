@@ -119,3 +119,18 @@ describe('一覧の表記', async () => {
     expect(formatReadingTime(160241, 600)).toBe('約4時間27分');
   });
 });
+
+describe('外字（JIS X 0213）', async () => {
+  const { jisToUnicode, parseGaijiNote } = await import('../src/aozora/gaiji');
+  it('第3水準・第4水準の面区点を Unicode にする', () => {
+    expect(jisToUnicode('1-87-71')).toBe('犍');
+    expect(jisToUnicode('1-84-77')).toBe('挘');
+    expect(jisToUnicode('2-1-1')).toBe('𠂉');
+    // 第1・第2水準（JIS X 0208 の範囲）は表に入れていない
+    expect(jisToUnicode('1-16-1')).toBeUndefined();
+  });
+  it('注記から文字を得る（U+ 指定を優先）', () => {
+    expect(parseGaijiNote('「牛へん＋建」、第3水準1-87-71').char).toBe('犍');
+    expect(parseGaijiNote('「にんべん＋發」、U+5F7F、19-下-5').char).toBe('彿');
+  });
+});
