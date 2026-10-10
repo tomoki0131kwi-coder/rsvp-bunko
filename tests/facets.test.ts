@@ -77,6 +77,11 @@ describe('作家の生まれた時代', () => {
     expect(eraOfDate('1912-07-30')).toBe('taisho');
     expect(eraOfDate('1926-12-25')).toBe('showa');
     expect(eraOfDate('1909')).toBe('meiji');
+    // 図書目録に実際にある書き方
+    expect(eraOfDate('1892-3-01')).toBe('meiji');
+    expect(eraOfDate('1892- 03-01')).toBe('meiji');
+    expect(eraOfDate('978')).toBe('edo');
+    expect(eraOfDate('紀元前9世紀末')).toBe('edo');
     expect(eraOfDate('')).toBe('unknown');
   });
 

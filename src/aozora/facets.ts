@@ -116,11 +116,16 @@ export function mainPerson(w: CatalogWork): CatalogPerson | undefined {
   return w.people.find((p) => p.role === '著者') ?? w.people[0];
 }
 
-/** "1867-02-09" → "1867-02-09"、"1867" → "1867-01-01"。読めなければ undefined */
+/**
+ * 生年月日を YYYY-MM-DD にそろえる。図書目録には "1867-02-09" のほか "1867"、"1867-2-09"、"978"（4 桁未満の年）、
+ * "紀元前9世紀末" のような値もある。紀元前は西暦 0 年扱い。読めなければ undefined
+ */
 export function normalizeDate(s: string | undefined): string | undefined {
-  const m = /^(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?/.exec(s ?? '');
+  const v = (s ?? '').trim();
+  if (v.startsWith('紀元前')) return '0000-01-01';
+  const m = /^(\d{1,4})(?:-\s*(\d{1,2})(?:-\s*(\d{1,2}))?)?/.exec(v);
   if (!m) return undefined;
-  return `${m[1]}-${(m[2] ?? '1').padStart(2, '0')}-${(m[3] ?? '1').padStart(2, '0')}`;
+  return `${m[1].padStart(4, '0')}-${(m[2] ?? '1').padStart(2, '0')}-${(m[3] ?? '1').padStart(2, '0')}`;
 }
 
 /**
