@@ -1,6 +1,6 @@
 import type { Run } from '../types';
 import { BlockBuilder } from './blockBuilder';
-import { GETA, gaijiImagePath, parseGaijiNote } from './gaiji';
+import { GETA, decodeAccents, gaijiImagePath, parseGaijiNote } from './gaiji';
 import type { ParsedBook } from './parseHtml';
 
 /**
@@ -24,7 +24,13 @@ export function parseAozoraText(text: string, gaijiBase?: string): ParsedBook {
       break;
     }
   }
-  const bibliography = lines.slice(end).map((l) => l.trim()).filter(Boolean).join('\n') || undefined;
+  // 書誌情報の行にも外字注記（例: 底本：「※［＃始め二重山括弧、1-1-52］復録…」）があるので、本文と同じく文字にする
+  const bibliography =
+    lines
+      .slice(end)
+      .map((l) => plainText(l, gaijiBase).trim())
+      .filter(Boolean)
+      .join('\n') || undefined;
 
   // ヘッダー（最初の空行まで）
   let i = 0;
@@ -37,7 +43,7 @@ export function parseAozoraText(text: string, gaijiBase?: string): ParsedBook {
     if (close > 0 && close < end) i = close + 1;
   }
 
-  const plain = (s: string) => stripNotation(s);
+  const plain = (s: string) => plainText(s, gaijiBase).trim();
   const title = plain(header[0] ?? '') || '無題';
   const author = header.length > 1 ? plain(header[header.length - 1]) : '';
   const subtitle = header.length > 2 ? header.slice(1, -1).map(plain).join('　') : undefined;
@@ -102,7 +108,7 @@ export function parseInline(line: string, b: BlockBuilder, gaijiBase?: string): 
     }
   };
 
-  for (const m of line.matchAll(TOKEN)) {
+  for (const m of decodeAccents(line).matchAll(TOKEN)) {
     const tok = m[0];
     if (m[1] !== undefined) {
       const info = parseGaijiNote(m[1]);
@@ -165,6 +171,14 @@ function trailingSameClass(atoms: Atom[]): number {
   let k = atoms.length - 1;
   while (k > 0 && charClass(atoms[k - 1]) === cls) k--;
   return k;
+}
+
+/** 1 行を、ルビ・注記を除いた文字列にする（外字は文字に置き換える） */
+function plainText(line: string, gaijiBase?: string): string {
+  const b = new BlockBuilder();
+  parseInline(line, b, gaijiBase);
+  b.lineBreak();
+  return b.finish()[0]?.runs.map((r) => r.text).join('') ?? '';
 }
 
 function stripNotation(s: string): string {

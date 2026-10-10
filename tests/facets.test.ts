@@ -121,16 +121,43 @@ describe('一覧の表記', async () => {
 });
 
 describe('外字（JIS X 0213）', async () => {
-  const { jisToUnicode, parseGaijiNote } = await import('../src/aozora/gaiji');
+  const { decodeAccents, jisToUnicode, parseGaijiNote } = await import('../src/aozora/gaiji');
+  it('アクセント分解を文字にし、置き換えたときだけ〔〕を外す', () => {
+    // 実際の作品にある例（中原中也「我が詩観」、小詩論、高山の雪）
+    expect(decodeAccents('〔Humanite\'〕')).toBe('Humanité');
+    expect(decodeAccents('〔Ou` les coe&urs s\'e\'prennent!〕')).toBe('Où les cœurs s\'éprennent!');
+    expect(decodeAccents('〔Ne\'ve\'〕です')).toBe('Névéです');
+    expect(decodeAccents('〔Tra:ummen〕')).toBe('Träummen');
+    expect(decodeAccents('〔注〕と〔AE&〕')).toBe('〔注〕とÆ');
+  });
   it('第3水準・第4水準の面区点を Unicode にする', () => {
     expect(jisToUnicode('1-87-71')).toBe('犍');
     expect(jisToUnicode('1-84-77')).toBe('挘');
     expect(jisToUnicode('2-1-1')).toBe('𠂉');
-    // 第1・第2水準（JIS X 0208 の範囲）は表に入れていない
-    expect(jisToUnicode('1-16-1')).toBeUndefined();
+    // 第1・第2水準（JIS X 0208 の範囲）は TextDecoder('euc-jp') で求める
+    expect(jisToUnicode('1-16-1')).toBe('亜');
+    expect(jisToUnicode('1-1-52')).toBe('《');
+    expect(jisToUnicode('1-1-53')).toBe('》');
+    expect(jisToUnicode('1-4-87')).toBe('か゚');
+    expect(jisToUnicode('2-2-1')).toBeUndefined();
   });
   it('注記から文字を得る（U+ 指定を優先）', () => {
     expect(parseGaijiNote('「牛へん＋建」、第3水準1-87-71').char).toBe('犍');
     expect(parseGaijiNote('「にんべん＋發」、U+5F7F、19-下-5').char).toBe('彿');
+  });
+});
+
+describe('外字注記の面区点の読み取り', async () => {
+  const { parseGaijiNote } = await import('../src/aozora/gaiji');
+  it('底本のページ・行を面区点と取り違えない', () => {
+    expect(parseGaijiNote('「未」の「二」に代えて「三」、24-1-3')).toEqual({ desc: '未' });
+    expect(parseGaijiNote('「討／貝」、406-2-9')).toEqual({ desc: '討／貝' });
+    expect(parseGaijiNote('「謎」、201-1-5').char).toBeUndefined();
+    expect(parseGaijiNote('変体仮名え、8-5-2').char).toBeUndefined();
+  });
+  it('区切りの直後の面区点は読む', () => {
+    expect(parseGaijiNote('感嘆符疑問符、1-8-78').char).toBe('⁉');
+    expect(parseGaijiNote('始め二重山括弧、1-1-52').char).toBe('《');
+    expect(parseGaijiNote('「牛へん＋建」、第3水準1-87-71、40-3').char).toBe('犍');
   });
 });

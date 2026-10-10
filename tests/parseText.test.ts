@@ -68,11 +68,33 @@ describe('parseInline', () => {
     ]);
   });
 
+  it('記号の外字（ルビの印と紛らわしい《》など）を文字にする', () => {
+    expect(runsOf('※［＃始め二重山括弧、1-1-52］資本論※［＃終わり二重山括弧、1-1-53］')).toEqual([{ text: '《資本論》' }]);
+  });
+
+  it('アクセント分解を文字にする', () => {
+    expect(runsOf('〔Poe`tes maudits〕を読む')).toEqual([{ text: 'Poètes mauditsを読む' }]);
+  });
+
   it('文字にできない外字は下駄記号にする', () => {
     expect(runsOf('あ※［＃「謎の字」、ページ数-行数］い')).toEqual([{ text: 'あ〓い' }]);
   });
 
   it('々を含む漢字列をひとまとまりとして扱う', () => {
     expect(runsOf('時々《ときどき》')).toEqual([{ text: '時々', ruby: 'ときどき' }]);
+  });
+});
+
+describe('書誌情報', () => {
+  it('底本の行の外字注記も文字にする', () => {
+    const text = ['題', '著者', '', '本文。', '', '底本：「※［＃始め二重山括弧、1-1-52］復録※［＃終わり二重山括弧、1-1-53］日本大雑誌」流動出版', '入力：テスト'].join('\r\n');
+    expect(parseAozoraText(text).bibliography).toBe('底本：「《復録》日本大雑誌」流動出版\n入力：テスト');
+  });
+});
+
+describe('表題・著者', () => {
+  it('表題の外字注記も文字にする', () => {
+    const text = ['※［＃「牛へん＋建」、第3水準1-87-71］陀多の話', '著者', '', '本文。'].join('\r\n');
+    expect(parseAozoraText(text).title).toBe('犍陀多の話');
   });
 });
