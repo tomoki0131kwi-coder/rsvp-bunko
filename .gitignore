@@ -3,3 +3,4 @@ dist/
 *.log
 .DS_Store
 public/catalog.json
+public/card-notes.json

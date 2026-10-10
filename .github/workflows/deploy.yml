@@ -3,9 +3,10 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
-  # 図書目録（青空文庫の作品一覧）を新しくするため、毎週月曜 4:17（日本時間）に作り直す
+  # 毎日 4:17（日本時間）に、図書目録（青空文庫の作品一覧）を作り直し、
+  # 図書カードの解説を未取得の分だけ取り込む（初回は数日に分けて全件を取る）
   schedule:
-    - cron: '17 19 * * 0'
+    - cron: '17 19 * * *'
   workflow_dispatch:
 
 permissions:
@@ -32,6 +33,12 @@ jobs:
       - run: npm run catalog
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      # 図書カードの「作品について」「人物について」。前回公開した分を引き継ぎ、未取得の図書カードだけを
+      # 1 秒に 1 件、最大 40 分取得する
+      - run: npm run notes
+        env:
+          NOTES_PREVIOUS: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/card-notes.json
+          NOTES_BUDGET_SECONDS: 2400
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

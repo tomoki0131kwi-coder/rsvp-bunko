@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "catalog": "tsx scripts/build-catalog.ts"
+    "catalog": "tsx scripts/build-catalog.ts",
+    "notes": "tsx scripts/card-notes.ts"
   },
   "dependencies": {
     "budoux": "^0.9.3",
