@@ -19,4 +19,9 @@ jobs:
       - run: npm run catalog
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      # 図書カードの解説の取得を数件だけ試す（形式の変化に気づくため）
+      - run: npm run notes
+        env:
+          NOTES_PREVIOUS: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/card-notes.json
+          NOTES_MAX: 5
       - run: npm run build

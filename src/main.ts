@@ -147,6 +147,10 @@ function showReader(book: Book) {
     updateSettings,
     openSettings,
     goHome: () => navigate('#/'),
+    getWork: async (id) => {
+      await ensureCatalog();
+      return catalog.byId(id);
+    },
   });
   const handle = reader;
   cleanup = () => handle.destroy();

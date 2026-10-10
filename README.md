@@ -15,6 +15,7 @@
   - 作家の生まれた時代（江戸時代以前・明治・大正・昭和以降）、文字遣い、作品名の頭文字（五十音の行）
   - 作家: 作品一覧の作家名から、その作家の作品だけを表示
 - **作家一覧**（`#/authors`）: 五十音順。名前で絞り込み、行ごとに移動できます
+- **解説**: 作品情報に、青空文庫の図書カードの「作品について」「人物について」を表示します（書かれている作品・作家のみ）
 - **RSVP 表示**
   - 文節区切りには Google の [BudouX](https://github.com/google/budoux) を使用。指定した文字数（既定 8 文字）まで文節をまとめて表示
   - ルビ（ふりがな）表示、傍点、外字（第3・第4水準の漢字などを Unicode の文字に変換）に対応
@@ -87,6 +88,15 @@ npm run preview   # ビルド結果の確認
   文字にできない外字だけ、青空文庫サイトの外字画像を `<img>` で表示します（画像の表示には CORS は不要）
 - **アクセント分解**: 欧文の `〔Humanite'〕` のような書き方を `Humanité` にします。表は同じく aozora2html の `yml/accent_table.yml` から作ります（`src/aozora/accents.json`）
 
+- **図書カードの解説**: デプロイ時に `scripts/card-notes.ts`（`npm run notes`）が図書カードの「作品について」「人物について」を取り込み、
+  `public/card-notes.json` として配信します。青空文庫のサーバーへの負担を抑えるため、前回公開した `card-notes.json` を引き継ぎ、
+  未取得の図書カードだけを 1 秒に 1 件、1 回あたり最大 40 分取得します（デプロイ用ワークフローは毎日動くので、初回は数日で全件を取り終え、その後は新しく公開された作品の分だけを取ります）。
+  まだ解説を取っていない作家の作品から先に取ります
+
+図書目録（作家別作品一覧 CSV）と図書カードのデータは、「青空文庫収録ファイルの取り扱い規準」の「図書カードや書架情報について」により、
+[クリエイティブ・コモンズ 表示 4.0 国際 ライセンス](https://creativecommons.org/licenses/by/4.0/deed.ja) で提供されています。
+アプリでは出典（青空文庫）とライセンスを表示し、解説は HTML をテキストに変換して表示しています。
+
 本文の取得元は設定画面の「詳細設定」で、同じ構成のミラーに変更できます。
 
 ローカルで開発するときは、先に `npm run catalog` で `public/catalog.json` を作ってください（`CATALOG_ZIP` に取得済みの ZIP を指定するとダウンロードを省けます）。
@@ -116,7 +126,7 @@ npx tsx scripts/scan-texts.ts /tmp/aozorabunko_text/cards report.json
 
 ## 参照した資料
 
-- 青空文庫「[収録ファイルの取り扱い規準](https://www.aozora.gr.jp/guide/kijyunn.html)」— 作品ファイルの利用条件。本アプリは作品を再配布せず、利用者のブラウザが都度取得して表示します。作品情報画面には各ファイル末尾の底本・入力者・校正者の情報をそのまま表示します
+- 青空文庫「[収録ファイルの取り扱い規準](https://www.aozora.gr.jp/guide/kijyunn.html)」— 作品ファイルの利用条件と、図書カード・作家別作品一覧 CSV のデータが CC BY 4.0 で提供されていること。本アプリは作品を再配布せず、利用者のブラウザが都度取得して表示します。作品情報画面には各ファイル末尾の底本・入力者・校正者の情報をそのまま表示します
 - 青空文庫「[注記一覧](https://www.aozora.gr.jp/annotation/)」「[テキスト入力ルール](https://www.aozora.gr.jp/aozora-manual/index-input.html)」— テキスト版の書式
 - [aozorahack/aozorabunko_text](https://github.com/aozorahack/aozorabunko_text) — 本文テキストのミラー（README に配置と更新方法の説明あり）
 - [aozorahack/aozora2html](https://github.com/aozorahack/aozora2html)（CC0）— 外字（JIS X 0213 → Unicode）とアクセント分解の対応表の元データ

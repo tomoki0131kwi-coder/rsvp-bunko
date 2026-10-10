@@ -1,7 +1,9 @@
 import { chunkBlocks, chunkIndexAtOffset, type Chunk } from '../rsvp/chunker';
 import { RsvpPlayer } from '../rsvp/player';
 import { formatDuration } from '../rsvp/timing';
-import type { Book, Run } from '../types';
+import type { CardNote, NoteLink } from '../aozora/cardNotes';
+import { loadCardNotes } from '../aozora/notes';
+import type { Book, CatalogWork, Run } from '../types';
 import { getRecent, saveRecent, type Settings } from '../util/storage';
 import { ICONS, clear, h, icon } from './dom';
 import { CPM_MAX, CPM_MIN, CPM_STEP } from './settings';
@@ -11,6 +13,8 @@ export interface ReaderContext {
   updateSettings: (patch: Partial<Settings>) => void;
   openSettings: () => void;
   goHome: () => void;
+  /** 図書目録の作品（作品情報で作家の解説を出すのに使う） */
+  getWork?: (id: number) => Promise<CatalogWork | undefined>;
 }
 
 export interface ReaderHandle {
@@ -283,6 +287,7 @@ export function renderReader(root: HTMLElement, book: Book, ctx: ReaderContext):
 
   function openInfo() {
     const total = chunks.reduce((n, c) => n + c.chars, 0);
+    const notesSlot = h('div', { class: 'notes' });
     const body = h(
       'div',
       { class: 'info' },
@@ -312,10 +317,49 @@ export function renderReader(root: HTMLElement, book: Book, ctx: ReaderContext):
             )
           : null,
       ),
+      notesSlot,
       book.bibliography ? h('h4', {}, '底本・入力者など') : null,
       book.bibliography ? h('pre', { class: 'bib' }, book.bibliography) : null,
     );
     sheet('作品情報', body);
+    void fillNotes(notesSlot);
+  }
+
+  /** 図書カードの「作品について」「人物について」を作品情報に足す */
+  async function fillNotes(slot: HTMLElement) {
+    const workId = book.source.workId;
+    if (!workId) return;
+    slot.append(h('p', { class: 'muted small' }, '解説を読み込んでいます…'));
+    const [notes, work] = await Promise.all([loadCardNotes(), ctx.getWork?.(workId)]);
+    clear(slot);
+    if (!notes) return;
+    const workNote = notes.works[workId];
+    const people = (work?.people ?? []).map((p) => ({ person: p, note: notes.persons[p.id] })).filter((x) => x.note);
+    if (workNote === undefined && !people.length) {
+      slot.append(h('p', { class: 'muted small' }, 'この作品の図書カードの解説は、まだ取り込んでいません（少しずつ取り込んでいます）。'));
+      return;
+    }
+    if (workNote) slot.append(h('h4', {}, '作品について'), renderNote(workNote));
+    for (const { person, note } of people) {
+      if (!note) continue;
+      slot.append(h('h4', {}, `${person.name}について`), renderNote(note));
+    }
+    if (!workNote && !people.length) {
+      slot.append(h('p', { class: 'muted small' }, '青空文庫の図書カードに、この作品の解説はありません。'));
+      return;
+    }
+    const cardUrl = work?.cardUrl ?? `https://www.aozora.gr.jp/cards/${cardDir(book)}/card${workId}.html`;
+    slot.append(
+      h(
+        'p',
+        { class: 'note-credit' },
+        '出典：',
+        h('a', { href: cardUrl, target: '_blank', rel: 'noopener' }, '青空文庫 図書カード'),
+        '（',
+        h('a', { href: 'https://creativecommons.org/licenses/by/4.0/deed.ja', target: '_blank', rel: 'noopener' }, 'CC BY 4.0'),
+        '）。表示のため HTML をテキストに変換しています。',
+      ),
+    );
   }
 
   // ---- イベント ----
@@ -431,6 +475,26 @@ export function renderReader(root: HTMLElement, book: Book, ctx: ReaderContext):
       window.removeEventListener('pagehide', onPageHide);
     },
   };
+}
+
+function renderNote(note: CardNote): HTMLElement {
+  return h(
+    'div',
+    { class: 'note' },
+    note.text ? note.text.split('\n').map((line) => h('p', {}, line)) : null,
+    note.links.length
+      ? h(
+          'ul',
+          { class: 'note-links' },
+          note.links.map((l) => h('li', {}, h('a', { href: l.href, target: '_blank', rel: 'noopener noreferrer' }, linkLabel(l)))),
+        )
+      : null,
+  );
+}
+
+/** Wikipedia へのリンクはそれと分かるようにする */
+function linkLabel(l: NoteLink): string {
+  return /wikipedia\.org/.test(l.href) ? `Wikipedia「${l.label}」` : l.label;
 }
 
 function renderRun(r: Run, showRuby: boolean): Node {

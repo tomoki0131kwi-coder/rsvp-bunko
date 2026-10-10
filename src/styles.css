@@ -1129,3 +1129,20 @@ a.chip:hover {
   background: var(--accent);
   color: var(--accent-text);
 }
+
+/* ---------- 図書カードの解説 ---------- */
+.notes .note p {
+  margin: 0 0 6px;
+  font-size: 0.92rem;
+  line-height: 1.8;
+}
+.note-links {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+  font-size: 0.88rem;
+}
+.note-credit {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
