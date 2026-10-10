@@ -1,0 +1,19 @@
+name: Research (temporary)
+
+on:
+  push:
+    branches: [claude/kind-mendel-89h2j9]
+    paths: [scripts/research-cards.mjs, .github/workflows/research.yml]
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/research-cards.mjs
